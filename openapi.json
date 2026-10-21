@@ -1,0 +1,4451 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "OpenAsy Logs API",
+    "version": "0.1.0",
+    "summary": "Search what happened on every host and service.",
+    "description": "Every screen of Logs uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only (ADR 0024). Errors use Problem Details (RFC 9457).\n\nLogs are stored in VictoriaLogs inside the product and searched with [LogsQL](https://docs.victoriametrics.com/victorialogs/logsql/) as it is (ADR 0035). They are sent with a source's ingest token, by syslog, or read over SSH by logs-agent. Each operation names the role it needs (`x-openasy-role`). Sign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This Logs"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Search",
+      "description": "LogsQL over every line kept. Searches are recorded with who asked (ADR 0015)."
+    },
+    {
+      "name": "Views",
+      "description": "Saved queries, and thresholds that call a signed webhook."
+    },
+    {
+      "name": "Sources",
+      "description": "Where logs come from, and the pipeline each goes through."
+    },
+    {
+      "name": "Ingest",
+      "description": "What shippers call, with a source's ingest token."
+    },
+    {
+      "name": "Agents",
+      "description": "logs-agent: installed once, it reads journald and Docker over SSH. Nothing is installed on hosts (ADR 0031)."
+    },
+    {
+      "name": "Hosts",
+      "description": "Servers an agent reads."
+    },
+    {
+      "name": "Product",
+      "description": "Version, health, overview and retention."
+    }
+  ],
+  "paths": {
+    "/api/v1/version": {
+      "get": {
+        "operationId": "version",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Version",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "product",
+                    "version"
+                  ],
+                  "properties": {
+                    "product": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "operationId": "listProducts",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Other OpenAsy products",
+        "description": "The OpenAsy products of this install and their addresses, from `OPENASY_PRODUCTS`, for the product switcher. Empty when it is not set.\n\nNeeds the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "The products, in the order they are configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "products"
+                  ],
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductLink"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/summary": {
+      "get": {
+        "operationId": "summary",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Overview",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Retention",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSettings",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Change retention",
+        "description": "VictoriaLogs is started again with the new retention; lines older than it are removed.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "retentionDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                  },
+                  "maxDiskGb": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "0: the oldest days go when the volume is 90% full."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search",
+        "description": "The newest lines that match, newest first.\n\nNeeds the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "*"
+            },
+            "description": "LogsQL, such as `service:api level:error \"timeout\"`."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to 15 minutes before end."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to now."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000,
+              "default": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Search"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/volume": {
+      "get": {
+        "operationId": "volume",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Lines over time, by level",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "*"
+            },
+            "description": "LogsQL, such as `service:api level:error \"timeout\"`."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to 15 minutes before end."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to now."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Volume"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/facets": {
+      "get": {
+        "operationId": "facets",
+        "tags": [
+          "Search"
+        ],
+        "summary": "The most frequent values of each field",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "*"
+            },
+            "description": "LogsQL, such as `service:api level:error \"timeout\"`."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to 15 minutes before end."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to now."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Facets"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/tail": {
+      "get": {
+        "operationId": "tail",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Live tail",
+        "description": "Server-sent events: each `data:` is a Line as it arrives. Lines read over SSH arrive at each host's interval.\n\nNeeds the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "*"
+            },
+            "description": "LogsQL, such as `service:api level:error \"timeout\"`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A stream of lines",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/searches": {
+      "get": {
+        "operationId": "listSearches",
+        "tags": [
+          "Search"
+        ],
+        "summary": "Who searched for what",
+        "description": "Kept 400 days.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Searches"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/views": {
+      "get": {
+        "operationId": "listViews",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Saved views",
+        "description": "Shared views and your own.\n\nNeeds the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "views"
+                  ],
+                  "properties": {
+                    "views": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/View"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createView",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Save a view",
+        "description": "Needs the editor role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/views/{id}": {
+      "get": {
+        "operationId": "getView",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Get a view",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateView",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Change a view",
+        "description": "Its owner, or an admin.\n\nNeeds the editor role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "LogsQL."
+                  },
+                  "shared": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Seen by everyone; private views only by their owner."
+                  },
+                  "alert": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "threshold",
+                          "windowMinutes",
+                          "webhookUrl"
+                        ],
+                        "properties": {
+                          "threshold": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "windowMinutes": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1440
+                          },
+                          "webhookUrl": {
+                            "type": "string"
+                          }
+                        },
+                        "description": "Checked every minute: when more lines than threshold matched in the window, the webhook is called, and again when it is back under."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteView",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Remove a view",
+        "description": "Its owner, or an admin.\n\nNeeds the editor role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "operationId": "listSources",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "List sources",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sources"
+                  ],
+                  "properties": {
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Source"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSource",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Add a source",
+        "description": "An http source gets its ingest token, shown once. A syslog source needs the networks it takes.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSource"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{id}": {
+      "get": {
+        "operationId": "getSource",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Get a source",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Source"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSource",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Change a source or its pipeline",
+        "description": "Needs the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "http",
+                      "syslog",
+                      "ssh"
+                    ]
+                  },
+                  "networks": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "plain": {
+                    "type": "boolean"
+                  },
+                  "processors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Processor"
+                    },
+                    "description": "Defaults to parse-json, map-level and mask-secrets."
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Source"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSource",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Remove a source",
+        "description": "Lines it sent stay until retention removes them.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{id}/token": {
+      "post": {
+        "operationId": "rotateSourceToken",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "A new ingest token",
+        "description": "The old one stops working at once.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSource"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/pipelines/preview": {
+      "post": {
+        "operationId": "previewPipeline",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Try processors on sample lines",
+        "description": "Nothing is stored.\n\nNeeds the editor role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "processors",
+                  "lines"
+                ],
+                "properties": {
+                  "processors": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Processor"
+                    }
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/syslog": {
+      "get": {
+        "operationId": "syslog",
+        "tags": [
+          "Sources"
+        ],
+        "summary": "Where syslog goes, and the certificate to pin",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Syslog"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/jsonline": {
+      "post": {
+        "operationId": "ingestJsonLines",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "JSON lines",
+        "description": "One JSON object per line, as Vector's http sink (ndjson) and Fluent Bit's http output (json_lines) send. The message, time and level are read from their usual names (message, msg, log; @timestamp, time, ts; level, severity); the rest become fields. Gzip is welcome.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ingested"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/otlp/v1/logs": {
+      "post": {
+        "operationId": "ingestOtlp",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "OpenTelemetry logs",
+        "description": "OTLP/HTTP, protobuf or JSON: set the OpenTelemetry Collector's otlphttp exporter logs_endpoint here, with the token as a Bearer header. service.name and host.name become service and host.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/x-protobuf": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/elasticsearch": {
+      "get": {
+        "operationId": "ingestElasticsearchInfo",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Elasticsearch version check",
+        "description": "What Elasticsearch clients ask before they send.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/elasticsearch/_license": {
+      "get": {
+        "operationId": "ingestElasticsearchLicense",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Elasticsearch licence check",
+        "description": "What Beats ask before they send.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/elasticsearch/_bulk": {
+      "post": {
+        "operationId": "ingestBulk",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Elasticsearch bulk",
+        "description": "For Winlogbeat, Filebeat, Fluent Bit and Vector with their Elasticsearch outputs: point them at /api/v1/ingest/elasticsearch with the token as password or API key. Documents become lines; actions other than index and create are ignored. Beats need `setup.template.enabled: false` and `setup.ilm.enabled: false`.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "took",
+                    "errors",
+                    "items"
+                  ],
+                  "properties": {
+                    "took": {
+                      "type": "integer"
+                    },
+                    "errors": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/elasticsearch/{index}/_bulk": {
+      "post": {
+        "operationId": "ingestBulkIndex",
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Elasticsearch bulk",
+        "description": "For Winlogbeat, Filebeat, Fluent Bit and Vector with their Elasticsearch outputs: point them at /api/v1/ingest/elasticsearch with the token as password or API key. Documents become lines; actions other than index and create are ignored. Beats need `setup.template.enabled: false` and `setup.ilm.enabled: false`.",
+        "security": [
+          {
+            "ingestToken": []
+          },
+          {
+            "ingestBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored: every document goes to the source."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "took",
+                    "errors",
+                    "items"
+                  ],
+                  "properties": {
+                    "took": {
+                      "type": "integer"
+                    },
+                    "errors": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "operationId": "listAgents",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "List agents",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "agents"
+                  ],
+                  "properties": {
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Agent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAgent",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Add an agent",
+        "description": "Returns a one-time enrolment token, valid for 7 days. Start logs-agent with it; the agent then has its own secret (ADR 0023).\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAgent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}": {
+      "get": {
+        "operationId": "getAgent",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get an agent",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAgent",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Remove an agent",
+        "description": "Only an agent that reads no hosts. Its secret stops working.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/enroll-token": {
+      "post": {
+        "operationId": "reEnrollAgent",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Enrol an agent again",
+        "description": "A new one-time token, for an agent that lost its volume. Its old secret stops working; its hosts must trust the new CA.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{id}/setup": {
+      "get": {
+        "operationId": "agentSetup",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "What to put on the hosts this agent reads",
+        "description": "Its CA public key, the sshd drop-in, the commands to prepare a host (with the systemd-journal group, which reading the system journal needs) and the fixed key.\n\nNeeds the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSetup"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/enroll": {
+      "post": {
+        "operationId": "agentEnroll",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "logs-agent: enrol with a one-time token",
+        "description": "Called by logs-agent, not by people.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentReport"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "token"
+                    ],
+                    "properties": {
+                      "token": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "agentId",
+                    "secret"
+                  ],
+                  "properties": {
+                    "agentId": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/work": {
+      "post": {
+        "operationId": "agentWork",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "logs-agent: ask for jobs",
+        "description": "Each job is leased for 2 minutes. Answers 409 when the agent's version differs from logs' (ADR 0019).",
+        "security": [
+          {
+            "agentSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "jobs"
+                  ],
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Job"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/results": {
+      "post": {
+        "operationId": "agentResult",
+        "tags": [
+          "Agents"
+        ],
+        "summary": "logs-agent: send what a read found",
+        "description": "Lines are masked by the agent and go through the host's source pipeline. The cursor moves only once they are stored. Gzip the body.",
+        "security": [
+          {
+            "agentSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Result"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts": {
+      "get": {
+        "operationId": "listHosts",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "List hosts",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hosts"
+                  ],
+                  "properties": {
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Host"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Add a host",
+        "description": "Logs asks the host for its key right away. Check the fingerprint on the host and accept it before the first read.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Host"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}": {
+      "get": {
+        "operationId": "getHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Get a host",
+        "description": "Needs the viewer role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Host"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Change a host",
+        "description": "A new address or port unpins the host key.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$",
+                    "description": "Stored as the host field of its lines."
+                  },
+                  "agentId": {
+                    "type": "string",
+                    "description": "The agent that reads this host. Optional when there is only one."
+                  },
+                  "sourceId": {
+                    "type": "string",
+                    "description": "The ssh source whose pipeline its lines go through. Optional when there is one or none."
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "default": 22
+                  },
+                  "user": {
+                    "type": "string",
+                    "default": "openasy"
+                  },
+                  "auth": {
+                    "type": "string",
+                    "enum": [
+                      "certificate",
+                      "key"
+                    ],
+                    "default": "certificate"
+                  },
+                  "containers": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "intervalSeconds": {
+                    "type": "integer",
+                    "minimum": 15,
+                    "maximum": 3600,
+                    "default": 60
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Host"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Stop reading a host",
+        "description": "Its lines stay until retention removes them.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}/read": {
+      "post": {
+        "operationId": "readHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Read now",
+        "description": "Needs the editor role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}/host-key": {
+      "post": {
+        "operationId": "fetchHostKey",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Ask the host for its key again",
+        "description": "Needs the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Host"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}/host-key/accept": {
+      "post": {
+        "operationId": "acceptHostKey",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Accept a host key",
+        "description": "After checking on the host that `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` prints this fingerprint.\n\nNeeds the admin role.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "fingerprint"
+                ],
+                "properties": {
+                  "fingerprint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Host"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Liveness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readyz",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Readiness: the database and VictoriaLogs",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Prometheus metrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus text format",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-openasy-session",
+        "description": "The browser session after signing in (`openasy-session` on plain http://localhost)."
+      },
+      "apiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API token from Settings → API tokens (`oa_logs_...`): one role, always an expiry (ADR 0003)."
+      },
+      "agentSecret": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "logs-agent's own secret (`ola_...`), from enrolment (ADR 0023)."
+      },
+      "ingestToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A source's ingest token (`olg_...`). `Authorization: ApiKey <token>` works too."
+      },
+      "ingestBasic": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "For Elasticsearch outputs: any user name, the ingest token as password."
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "An error, as RFC 9457 Problem Details.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid-json",
+              "invalid-body",
+              "invalid-query",
+              "not-found",
+              "conflict",
+              "not-configured",
+              "unavailable",
+              "version-mismatch",
+              "internal-error",
+              "unauthenticated",
+              "invalid-token",
+              "mfa-setup-required",
+              "forbidden",
+              "cross-site",
+              "rate-limited"
+            ],
+            "description": "Stable; match on this."
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductLink": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The product, as OpenAsy names it.",
+            "examples": [
+              "infrastructure"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The address people open it at.",
+            "examples": [
+              "https://infra.example.com"
+            ]
+          }
+        }
+      },
+      "Processor": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "parse-json"
+              }
+            },
+            "description": "JSON in the message becomes fields; its message, time and level take their places."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "pattern"
+            ],
+            "properties": {
+              "type": {
+                "const": "parse-regex"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "description": "Named groups become fields. A group named msg replaces the message, one named time the time."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "map-level"
+              },
+              "field": {
+                "type": "string"
+              }
+            },
+            "description": "Names the level alike (error, warn, info...) from words, syslog severities or numbers. field defaults to level."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "pattern"
+            ],
+            "properties": {
+              "type": {
+                "const": "mask"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "replacement": {
+                "type": "string"
+              }
+            },
+            "description": "Replaces what matches, in the message and every field. replacement defaults to ***."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "mask-secrets"
+              }
+            },
+            "description": "Masks values that look like passwords, tokens, keys and credentials in URLs."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "field",
+              "pattern"
+            ],
+            "properties": {
+              "type": {
+                "const": "drop"
+              },
+              "field": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "description": "Drops lines whose field matches. field msg is the message."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "field",
+              "pattern",
+              "percent"
+            ],
+            "properties": {
+              "type": {
+                "const": "sample"
+              },
+              "field": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "percent": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99
+              }
+            },
+            "description": "Keeps percent of the lines whose field matches, and every other line."
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "field",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "const": "set"
+              },
+              "field": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "description": "Sets a field, such as service for a source that does not send it."
+          }
+        ]
+      },
+      "Source": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "networks",
+          "plain",
+          "processors",
+          "enabled",
+          "linesIn",
+          "linesDropped",
+          "lastSeenAt",
+          "lastError",
+          "hosts",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "http",
+              "syslog",
+              "ssh"
+            ],
+            "description": "http: shippers send with the source's token. syslog: senders in its networks. ssh: hosts logs-agent reads."
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "For syslog: the senders it takes, as addresses or networks."
+          },
+          "plain": {
+            "type": "boolean",
+            "description": "For syslog: also take plain TCP and UDP from these networks, not only TLS."
+          },
+          "processors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Processor"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "linesIn": {
+            "type": "integer"
+          },
+          "linesDropped": {
+            "type": "integer",
+            "description": "Dropped or sampled away by the pipeline."
+          },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hosts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SourceInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "http",
+              "syslog",
+              "ssh"
+            ]
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "plain": {
+            "type": "boolean"
+          },
+          "processors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Processor"
+            },
+            "description": "Defaults to parse-json, map-level and mask-secrets."
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NewSource": {
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "token": {
+            "type": "string",
+            "description": "For http sources: the ingest token, shown once (olg_...)."
+          }
+        }
+      },
+      "Line": {
+        "type": "object",
+        "required": [
+          "time",
+          "msg",
+          "level",
+          "host",
+          "service",
+          "source",
+          "fields"
+        ],
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Search": {
+        "type": "object",
+        "required": [
+          "lines",
+          "start",
+          "end",
+          "truncated"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Line"
+            }
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More lines matched than the limit; narrow the query or the range."
+          }
+        }
+      },
+      "Volume": {
+        "type": "object",
+        "required": [
+          "step",
+          "times",
+          "series"
+        ],
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "times": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "level",
+                "values",
+                "total"
+              ],
+              "properties": {
+                "level": {
+                  "type": "string"
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "total": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Facets": {
+        "type": "object",
+        "required": [
+          "fields"
+        ],
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "field",
+                "values"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "value",
+                      "hits"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      },
+                      "hits": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Alert": {
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "threshold",
+              "windowMinutes",
+              "webhookUrl",
+              "state",
+              "lastCount",
+              "lastCheckedAt",
+              "lastFiredAt",
+              "lastError"
+            ],
+            "properties": {
+              "threshold": {
+                "type": "integer"
+              },
+              "windowMinutes": {
+                "type": "integer"
+              },
+              "webhookUrl": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "firing",
+                  "error"
+                ]
+              },
+              "lastCount": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastCheckedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastFiredAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastError": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "View": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "query",
+          "owner",
+          "shared",
+          "alert",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "alert": {
+            "$ref": "#/components/schemas/Alert"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ViewInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "query"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "query": {
+            "type": "string",
+            "description": "LogsQL."
+          },
+          "shared": {
+            "type": "boolean",
+            "default": true,
+            "description": "Seen by everyone; private views only by their owner."
+          },
+          "alert": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "threshold",
+                  "windowMinutes",
+                  "webhookUrl"
+                ],
+                "properties": {
+                  "threshold": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "windowMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1440
+                  },
+                  "webhookUrl": {
+                    "type": "string"
+                  }
+                },
+                "description": "Checked every minute: when more lines than threshold matched in the window, the webhook is called, and again when it is back under."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "NewView": {
+        "type": "object",
+        "required": [
+          "view"
+        ],
+        "properties": {
+          "view": {
+            "$ref": "#/components/schemas/View"
+          },
+          "webhookSecret": {
+            "type": "string",
+            "description": "Shown once when a threshold is added: verify the webhook-signature header with it (Standard Webhooks)."
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "required": [
+          "retentionDays",
+          "maxDiskGb"
+        ],
+        "properties": {
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "maxDiskGb": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0: the oldest days go when the volume is 90% full."
+          }
+        }
+      },
+      "Syslog": {
+        "type": "object",
+        "required": [
+          "tlsPort",
+          "plainPort",
+          "fingerprint",
+          "certificate",
+          "origin",
+          "stats"
+        ],
+        "properties": {
+          "tlsPort": {
+            "type": "integer"
+          },
+          "plainPort": {
+            "type": "integer"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "SHA-256 of the certificate senders should pin."
+          },
+          "certificate": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "file",
+              "generated"
+            ]
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "received",
+                  "unmatched",
+                  "connections",
+                  "errors"
+                ],
+                "properties": {
+                  "received": {
+                    "type": "integer"
+                  },
+                  "unmatched": {
+                    "type": "integer"
+                  },
+                  "connections": {
+                    "type": "integer"
+                  },
+                  "errors": {
+                    "type": "integer"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Searches": {
+        "type": "object",
+        "required": [
+          "searches"
+        ],
+        "properties": {
+          "searches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "at",
+                "actor",
+                "kind",
+                "query"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "search",
+                    "tail"
+                  ]
+                },
+                "query": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        }
+      },
+      "Preview": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kept",
+                "msg",
+                "fields"
+              ],
+              "properties": {
+                "kept": {
+                  "type": "boolean"
+                },
+                "msg": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Ingested": {
+        "type": "object",
+        "required": [
+          "accepted",
+          "dropped"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "dropped": {
+            "type": "integer"
+          }
+        }
+      },
+      "HostKey": {
+        "type": "object",
+        "required": [
+          "type",
+          "fingerprint"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^SHA256:"
+          }
+        }
+      },
+      "Host": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "agent",
+          "source",
+          "address",
+          "port",
+          "user",
+          "auth",
+          "containers",
+          "intervalSeconds",
+          "hostKeys",
+          "pendingHostKeys",
+          "status",
+          "statusDetail",
+          "unreadable",
+          "linesIn",
+          "lastAttemptAt",
+          "lastSuccessAt",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string",
+            "enum": [
+              "certificate",
+              "key"
+            ]
+          },
+          "containers": {
+            "type": "boolean",
+            "description": "Also read container logs through the host's Docker. Access to the socket is equivalent to root (ADR 0031)."
+          },
+          "intervalSeconds": {
+            "type": "integer"
+          },
+          "hostKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            }
+          },
+          "pendingHostKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "host-key-pending",
+              "host-key-changed",
+              "pending",
+              "ok",
+              "unreachable",
+              "auth-failed",
+              "timeout",
+              "error"
+            ],
+            "description": "Of the last read. new and host-key-pending wait for an admin to accept the host key."
+          },
+          "statusDetail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unreadable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the account may not read, such as the system journal without the systemd-journal group."
+          },
+          "linesIn": {
+            "type": "integer"
+          },
+          "lastAttemptAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastSuccessAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HostInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "address"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$",
+            "description": "Stored as the host field of its lines."
+          },
+          "agentId": {
+            "type": "string",
+            "description": "The agent that reads this host. Optional when there is only one."
+          },
+          "sourceId": {
+            "type": "string",
+            "description": "The ssh source whose pipeline its lines go through. Optional when there is one or none."
+          },
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "default": 22
+          },
+          "user": {
+            "type": "string",
+            "default": "openasy"
+          },
+          "auth": {
+            "type": "string",
+            "enum": [
+              "certificate",
+              "key"
+            ],
+            "default": "certificate"
+          },
+          "containers": {
+            "type": "boolean",
+            "default": false
+          },
+          "intervalSeconds": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 3600,
+            "default": 60
+          }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "version",
+          "caFingerprint",
+          "lastSeenAt",
+          "lastError",
+          "hosts",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting-to-enrol",
+              "online",
+              "offline",
+              "version-mismatch"
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caFingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hosts": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NewAgent": {
+        "type": "object",
+        "required": [
+          "agent",
+          "enrollToken",
+          "enrollExpiresAt"
+        ],
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "enrollToken": {
+            "type": "string",
+            "description": "One-time, valid 7 days (ole_...). Shown once."
+          },
+          "enrollExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AgentSetup": {
+        "type": "object",
+        "required": [
+          "agent",
+          "caPublicKey",
+          "caFingerprint",
+          "keyPublicKey",
+          "sshdConfig",
+          "hostSetup",
+          "authorizedKey"
+        ],
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "caPublicKey": {
+            "type": "string"
+          },
+          "caFingerprint": {
+            "type": "string"
+          },
+          "keyPublicKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sshdConfig": {
+            "type": "string"
+          },
+          "hostSetup": {
+            "type": "string"
+          },
+          "authorizedKey": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentReport": {
+        "type": "object",
+        "required": [
+          "version",
+          "caPublicKey",
+          "keyPublicKey",
+          "setup"
+        ],
+        "description": "What logs-agent says about itself on every call: its version (it must equal logs', ADR 0019), its public keys and the host setup.",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "caPublicKey": {
+            "type": "string"
+          },
+          "keyPublicKey": {
+            "type": "string"
+          },
+          "setup": {
+            "type": "object",
+            "required": [
+              "sshdConfig",
+              "hostSetup",
+              "authorizedKey"
+            ],
+            "properties": {
+              "sshdConfig": {
+                "type": "string"
+              },
+              "hostSetup": {
+                "type": "string"
+              },
+              "authorizedKey": {
+                "type": "string"
+              }
+            }
+          },
+          "running": {
+            "type": "integer"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "required": [
+          "id",
+          "hostId",
+          "action",
+          "target",
+          "cursor"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "host-key"
+            ]
+          },
+          "target": {
+            "type": "object",
+            "required": [
+              "address",
+              "port",
+              "user",
+              "hostKeys",
+              "auth",
+              "containers"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "user": {
+                "type": "string"
+              },
+              "hostKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "auth": {
+                "type": "string",
+                "enum": [
+                  "certificate",
+                  "key"
+                ]
+              },
+              "containers": {
+                "type": "boolean"
+              }
+            }
+          },
+          "cursor": {
+            "type": "object",
+            "required": [
+              "journal",
+              "docker"
+            ],
+            "properties": {
+              "journal": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "docker": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Result": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "hostId",
+          "ok"
+        ],
+        "description": "One of: entries (a read, with where it stopped), hostKeys (the keys a host presents), or error.",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "msg"
+              ],
+              "properties": {
+                "time": {
+                  "type": "string"
+                },
+                "msg": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "cursor": {
+            "type": "object",
+            "required": [],
+            "properties": {
+              "journal": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "docker": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "more": {
+            "type": "boolean",
+            "description": "The read stopped at its limit; the host is read again at once."
+          },
+          "unreadable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hostKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "kind",
+              "message"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Summary": {
+        "type": "object",
+        "required": [
+          "sources",
+          "agents",
+          "hosts",
+          "linesLastHour",
+          "storedBytes",
+          "retentionDays",
+          "maxDiskGb",
+          "alertsFiring"
+        ],
+        "properties": {
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "agents": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "hosts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "linesLastHour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storedBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retentionDays": {
+            "type": "integer"
+          },
+          "maxDiskGb": {
+            "type": "integer"
+          },
+          "alertsFiring": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
