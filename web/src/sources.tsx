@@ -1,6 +1,6 @@
-import { Badge, Button, Callout, Checkbox, EmptyState, IconButton, navigate, PageHeader, Panel, SelectField, Switch, Tabs, TextField, type Column } from "@openasy/ui";
+import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, IconButton, navigate, PageHeader, Panel, SelectField, Switch, Tabs, TextField, type Column } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
-import { ArrowDown, ArrowUp, Plus, RotateCw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { NewSource, Processor, Source, Syslog } from "./api.ts";
 import { ago, Code, count, explore, List, Pairs, quote, useData, type Call } from "./shared.tsx";
@@ -178,7 +178,8 @@ function PipelineEditor({ call, source, onSaved }: { call: Call; source: Source;
 }
 
 /** How to send to an http source, for the shippers people already run. */
-function HttpSetup({ token }: { token?: string }) {
+/** `bare` leaves out the panel, for the dialog that shows a new source's token. */
+function HttpSetup({ token, bare }: { token?: string; bare?: boolean }) {
   const base = window.location.origin;
   const host = window.location.hostname;
   const t = token ?? "<the token of this source>";
@@ -190,8 +191,8 @@ function HttpSetup({ token }: { token?: string }) {
     otel: `exporters:\n  otlphttp/openasy:\n    logs_endpoint: ${base}/api/v1/ingest/otlp/v1/logs\n    headers:\n      Authorization: Bearer ${t}\n\nservice:\n  pipelines:\n    logs:\n      exporters: [otlphttp/openasy]`,
     beats: `# winlogbeat.yml or filebeat.yml\noutput.elasticsearch:\n  hosts: ["${base}/api/v1/ingest/elasticsearch"]\n  username: "openasy"\n  password: "${t}"\nsetup.template.enabled: false\nsetup.ilm.enabled: false`,
   };
-  return (
-    <Panel title="Send to this source" description="Use the shipper you already run. Every request carries the source's token; gzip is welcome.">
+  const tabs = (
+    <>
       <Tabs
         label="Shipper"
         value={tab}
@@ -207,6 +208,12 @@ function HttpSetup({ token }: { token?: string }) {
       <div className="mt-3">
         <Code label={`Configuration for ${tab}`}>{snippets[tab]}</Code>
       </div>
+    </>
+  );
+  if (bare) return tabs;
+  return (
+    <Panel title="Send to this source" description="Use the shipper you already run. Every request carries the source's token; gzip is welcome.">
+      {tabs}
     </Panel>
   );
 }
@@ -280,12 +287,22 @@ export function SourcePage({ call, id }: { call: Call; id: string }) {
         }
       />
       {token && (
-        <Callout tone="warning" title="The new token" onDismiss={() => setToken(undefined)}>
-          <span className="flex flex-col gap-2">
-            <span>It is shown once. Put it where the old one was.</span>
-            <Code label="Ingest token">{token}</Code>
-          </span>
-        </Callout>
+        <Dialog
+          open
+          onOpenChange={(open) => !open && setToken(undefined)}
+          icon={<Check aria-hidden className="size-4" />}
+          iconTone="success"
+          title={`The new token of ${s.name}`}
+          description="It is shown once. Put it where the old one was; the old one no longer works."
+          footer={
+            <Button variant="primary" onClick={() => setToken(undefined)}>
+              Done
+            </Button>
+          }
+        >
+          <Code label="Ingest token">{token}</Code>
+          <Callout tone="warning" title="Closing this dialog hides the token" />
+        </Dialog>
       )}
       {error && (
         <Callout tone="danger" title="Not changed">
@@ -329,7 +346,7 @@ export function SourcePage({ call, id }: { call: Call; id: string }) {
   );
 }
 
-function AddSource({ call, onAdded }: { call: Call; onAdded: (r: NewSource) => void }) {
+function AddSource({ call, onAdded, onCancel }: { call: Call; onAdded: (r: NewSource) => void; onCancel: () => void }) {
   const [kind, setKind] = useState<Source["kind"]>("http");
   const [name, setName] = useState("");
   const [networks, setNetworks] = useState("");
@@ -345,25 +362,32 @@ function AddSource({ call, onAdded }: { call: Call; onAdded: (r: NewSource) => v
     }
   };
   return (
-    <Panel title="Add a source">
-      <form onSubmit={add} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <SelectField label="Logs come" value={kind} onChange={(e) => setKind(e.target.value as Source["kind"])} options={[{ value: "http", label: "Sent over HTTP: Vector, Fluent Bit, OpenTelemetry, Beats" }, { value: "syslog", label: "By syslog: servers, firewalls, switches" }, { value: "ssh", label: "Read over SSH by logs-agent" }]} />
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "syslog" ? "network" : "apps"} hint="Stored as the source field of each line" error={error} />
-        </div>
-        {kind === "syslog" && (
-          <>
-            <TextField label="Networks it takes" mono value={networks} onChange={(e) => setNetworks(e.target.value)} placeholder="10.0.0.0/8, 192.0.2.10" hint="Syslog carries no token: only these senders are taken." />
-            <Checkbox label="Also plain TCP and UDP" description="Off: TLS only." checked={plain} onChange={(e) => setPlain(e.target.checked)} />
-          </>
-        )}
-        <div>
-          <Button type="submit" variant="primary" icon={<Plus />} disabled={!name || (kind === "syslog" && !networks.trim())}>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title="Add a source"
+      description="One for each way logs reach you. Each source has its own pipeline."
+      onSubmit={add}
+      footer={
+        <>
+          <Button type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={!name || (kind === "syslog" && !networks.trim())}>
             Add source
           </Button>
-        </div>
-      </form>
-    </Panel>
+        </>
+      }
+    >
+      <SelectField label="Logs come" value={kind} onChange={(e) => setKind(e.target.value as Source["kind"])} options={[{ value: "http", label: "Sent over HTTP: Vector, Fluent Bit, OpenTelemetry, Beats" }, { value: "syslog", label: "By syslog: servers, firewalls, switches" }, { value: "ssh", label: "Read over SSH by logs-agent" }]} />
+      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "syslog" ? "network" : "apps"} hint="Stored as the source field of each line" error={error} />
+      {kind === "syslog" && (
+        <>
+          <TextField label="Networks it takes" mono value={networks} onChange={(e) => setNetworks(e.target.value)} placeholder="10.0.0.0/8, 192.0.2.10" hint="Syslog carries no token: only these senders are taken." />
+          <Checkbox label="Also plain TCP and UDP" description="Off: TLS only." checked={plain} onChange={(e) => setPlain(e.target.checked)} />
+        </>
+      )}
+    </Dialog>
   );
 }
 
@@ -388,7 +412,7 @@ export function SourcesPage({ call }: { call: Call }) {
         description="Where logs come from: sent by shippers with a token, by syslog from known networks, or read over SSH. Each source has its pipeline."
         actions={
           can("admin") && (
-            <Button variant="primary" icon={<Plus />} onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+            <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
               Add source
             </Button>
           )
@@ -398,27 +422,36 @@ export function SourcesPage({ call }: { call: Call }) {
         <AddSource
           call={call}
           onAdded={(r) => {
-            setCreated(r);
             setAdding(false);
             reload();
+            // Syslog and SSH sources have no token to show: their page says how to send to them.
+            if (r.token) setCreated(r);
+            else navigate(`/sources/${r.source.id}`);
           }}
+          onCancel={() => setAdding(false)}
         />
       )}
       {created?.token && (
-        <>
-          <Callout tone="warning" title={`The token of ${created.source.name}`} onDismiss={() => setCreated(undefined)}>
-            <span className="flex flex-col gap-2">
-              <span>It is shown once. The snippets below already hold it.</span>
-              <Code label="Ingest token">{created.token}</Code>
-            </span>
+        <Dialog
+          open
+          onOpenChange={(open) => !open && setCreated(undefined)}
+          size="lg"
+          icon={<Check aria-hidden className="size-4" />}
+          iconTone="success"
+          title={`${created.source.name} is added. Copy its token`}
+          description="It is shown once. The snippets already hold it; use the shipper you already run."
+          footer={
+            <Button variant="primary" onClick={() => setCreated(undefined)}>
+              Done
+            </Button>
+          }
+        >
+          <Code label="Ingest token">{created.token}</Code>
+          <HttpSetup token={created.token} bare />
+          <Callout tone="warning" title="Closing this dialog hides the token">
+            If it is lost, make a new one on the source's page.
           </Callout>
-          <HttpSetup token={created.token} />
-        </>
-      )}
-      {created && !created.token && (
-        <Callout tone="success" title={`${created.source.name} is added`} onDismiss={() => setCreated(undefined)}>
-          <a href={`/sources/${created.source.id}`}>Open it</a> for how to send to it and its pipeline.
-        </Callout>
+        </Dialog>
       )}
       {data?.sources.length === 0 ? (
         <EmptyState title="No sources yet">Add one for each way logs reach you: shippers over HTTP, syslog from devices, or hosts read over SSH.</EmptyState>

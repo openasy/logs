@@ -1,11 +1,11 @@
-import { Badge, Button, Callout, Checkbox, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column } from "@openasy/ui";
+import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
-import { KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { Agent, AgentSetup, Host, Source } from "./api.ts";
 import { ago, Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
 
-function AddHost({ call, agents, sources, onAdded }: { call: Call; agents: Agent[]; sources: Source[]; onAdded: () => void }) {
+function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; agents: Agent[]; sources: Source[]; onAdded: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
@@ -16,31 +16,35 @@ function AddHost({ call, agents, sources, onAdded }: { call: Call; agents: Agent
     e.preventDefault();
     try {
       await call("/api/v1/hosts", { method: "POST", body: JSON.stringify({ name, address, agentId, ...(sourceId && { sourceId }), containers }) });
-      setName("");
-      setAddress("");
-      setError(undefined);
       onAdded();
     } catch (err) {
       setError((err as Error).message);
     }
   };
   return (
-    <Panel title="Add a host" description="The agent asks the host for its key first. Check the fingerprint on the host, then accept it; reading starts within a minute.">
-      <form onSubmit={add} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="web-1" hint="Its lines carry it as host" error={error} />
-          <TextField label="Address" mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
-          {agents.length > 1 && <SelectField label="Read by" value={agentId} onChange={(e) => setAgentId(e.target.value)} options={agents.map((a) => ({ value: a.id, label: a.name }))} />}
-          {sources.length > 1 && <SelectField label="Pipeline of" value={sourceId} onChange={(e) => setSourceId(e.target.value)} options={sources.map((s) => ({ value: s.id, label: s.name }))} />}
-        </div>
-        <Checkbox label="Also read container logs" description="Through the host's Docker. Access to the Docker socket is equivalent to root on that host." checked={containers} onChange={(e) => setContainers(e.target.checked)} />
-        <div>
-          <Button type="submit" variant="primary" icon={<Plus />} disabled={!name || !address}>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title="Add a host"
+      description="The agent asks the host for its key first. Check the fingerprint on the host, then accept it; reading starts within a minute."
+      onSubmit={add}
+      footer={
+        <>
+          <Button type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={!name || !address}>
             Add host
           </Button>
-        </div>
-      </form>
-    </Panel>
+        </>
+      }
+    >
+      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="web-1" hint="Its lines carry it as host" error={error} />
+      <TextField label="Address" mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
+      {agents.length > 1 && <SelectField label="Read by" value={agentId} onChange={(e) => setAgentId(e.target.value)} options={agents.map((a) => ({ value: a.id, label: a.name }))} />}
+      {sources.length > 1 && <SelectField label="Pipeline of" value={sourceId} onChange={(e) => setSourceId(e.target.value)} options={sources.map((s) => ({ value: s.id, label: s.name }))} />}
+      <Checkbox label="Also read container logs" description="Through the host's Docker. Access to the Docker socket is equivalent to root on that host." checked={containers} onChange={(e) => setContainers(e.target.checked)} />
+    </Dialog>
   );
 }
 
@@ -119,7 +123,7 @@ export function HostsPage({ call }: { call: Call }) {
         actions={
           can("admin") &&
           agents.length > 0 && (
-            <Button variant="primary" icon={<Plus />} onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+            <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
               Add host
             </Button>
           )
@@ -139,6 +143,7 @@ export function HostsPage({ call }: { call: Call }) {
             setAdding(false);
             reload();
           }}
+          onCancel={() => setAdding(false)}
         />
       )}
       {waiting.map((h) => (
@@ -161,11 +166,24 @@ const AGENT_STATUS: Record<string, { tone: "success" | "warning" | "danger" | "i
 };
 
 /** How to start logs-agent with its one-time token, next to Logs or in another network. */
-function EnrollCommand({ token, expiresAt, version }: { token: string; expiresAt: string; version?: string }) {
+function EnrollCommand({ token, expiresAt, version, onDone }: { token: string; expiresAt: string; version?: string; onDone: () => void }) {
   return (
-    <Callout tone="warning" title="Start the agent with this one-time token">
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onDone()}
+      size="lg"
+      icon={<Check aria-hidden className="size-4" />}
+      iconTone="success"
+      title="Start the agent with this one-time token"
+      description={`It works once, until ${new Date(expiresAt).toLocaleString()}, and is not shown again.`}
+      footer={
+        <Button variant="primary" onClick={onDone}>
+          Done
+        </Button>
+      }
+    >
       <span className="flex flex-col gap-2">
-        <span>It works once, until {new Date(expiresAt).toLocaleString()}, and is not shown again. With the compose file of Logs:</span>
+        <span>With the compose file of Logs:</span>
         <Code label="Start the agent next to Logs">{`LOGS_ENROLL_TOKEN=${token} docker compose up -d logs-agent`}</Code>
         <span>In another network, on any server that reaches the hosts there and reaches Logs:</span>
         <Code label="Start the agent in another network">
@@ -177,7 +195,10 @@ docker run -d --name logs-agent --restart unless-stopped --read-only --tmpfs /tm
   ghcr.io/openasy/logs-agent:${version ?? "<the version of Logs>"}`}
         </Code>
       </span>
-    </Callout>
+      <Callout tone="warning" title="Closing this dialog hides the token">
+        If it is lost, enrol the agent again from its row.
+      </Callout>
+    </Dialog>
   );
 }
 
@@ -188,7 +209,9 @@ export function AgentsPage({ call }: { call: Call }) {
   const version = useData<{ version: string }>(call, "/api/v1/version", 0).data?.version;
   const [name, setName] = useState("");
   const [created, setCreated] = useState<{ enrollToken: string; enrollExpiresAt: string }>();
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string>();
+  const close = () => (setAdding(false), setName(""), setError(undefined));
   const enrolled = (data?.agents ?? []).filter((a) => a.caFingerprint);
   const [setupFor, setSetupFor] = useState("");
   const chosen = setupFor || enrolled[0]?.id || "";
@@ -196,8 +219,9 @@ export function AgentsPage({ call }: { call: Call }) {
   const add = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      setCreated(await call("/api/v1/agents", { method: "POST", body: JSON.stringify({ name }) }));
-      setName("");
+      const r = await call<{ enrollToken: string; enrollExpiresAt: string }>("/api/v1/agents", { method: "POST", body: JSON.stringify({ name }) });
+      close();
+      setCreated(r);
       reload();
     } catch (err) {
       setError((err as Error).message);
@@ -231,18 +255,38 @@ export function AgentsPage({ call }: { call: Call }) {
   ];
   return (
     <>
-      <PageHeader title="Agents" description="logs-agent is installed once, next to Logs or in another network, and reads the hosts there over SSH with 5-minute certificates. It keeps its SSH certificate authority; Logs only says which host to read and from where." />
-      {can("admin") && (
-        <Panel title="Add an agent">
-          <form onSubmit={add} className="flex flex-wrap items-end gap-2">
-            <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="dc-frankfurt" error={error} />
-            <Button type="submit" variant="primary" icon={<Plus />} disabled={!name}>
+      <PageHeader
+        title="Agents"
+        description="logs-agent is installed once, next to Logs or in another network, and reads the hosts there over SSH with 5-minute certificates. It keeps its SSH certificate authority; Logs only says which host to read and from where."
+        actions={
+          can("admin") && (
+            <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
               Add agent
             </Button>
-          </form>
-        </Panel>
-      )}
-      {created && <EnrollCommand token={created.enrollToken} expiresAt={created.enrollExpiresAt} version={version} />}
+          )
+        }
+      />
+      <Dialog
+        open={adding}
+        onOpenChange={(open) => !open && close()}
+        size="sm"
+        title="Add an agent"
+        description="Name it after where it runs. You get a one-time token to start it with."
+        onSubmit={add}
+        footer={
+          <>
+            <Button type="button" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={!name}>
+              Add agent
+            </Button>
+          </>
+        }
+      >
+        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="dc-frankfurt" error={error} />
+      </Dialog>
+      {created && <EnrollCommand token={created.enrollToken} expiresAt={created.enrollExpiresAt} version={version} onDone={() => setCreated(undefined)} />}
       <Panel flush>
         <List label="Agents" rows={data?.agents} columns={cols} empty="No agents yet" getRowId={(a) => a.id} />
       </Panel>

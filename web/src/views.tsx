@@ -1,13 +1,13 @@
-import { Badge, Button, Callout, Checkbox, EmptyState, PageHeader, Panel, TextField, type Column } from "@openasy/ui";
+import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, PageHeader, Panel, TextField, type Column } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { NewView, View } from "./api.ts";
 import { ago, Code, List, useData, type Call } from "./shared.tsx";
 
 const ALERT = { ok: { tone: "success", label: "Under" }, firing: { tone: "danger", label: "Over" }, error: { tone: "warning", label: "Not checked" } } as const;
 
-function ViewForm({ call, view, onDone }: { call: Call; view?: View; onDone: (r: NewView) => void }) {
+function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; onDone: (r: NewView) => void; onCancel: () => void }) {
   const [name, setName] = useState(view?.name ?? "");
   const [query, setQuery] = useState(view?.query ?? "");
   const [shared, setShared] = useState(view?.shared ?? true);
@@ -26,33 +26,40 @@ function ViewForm({ call, view, onDone }: { call: Call; view?: View; onDone: (r:
     }
   };
   return (
-    <Panel title={view ? `Change ${view.name}` : "Save a view"}>
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" />
-          <TextField label="LogsQL query" mono value={query} onChange={(e) => setQuery(e.target.value)} placeholder="service:checkout level:error" className="min-w-0 grow" />
-        </div>
-        <Checkbox label="Everyone can see it" description="Otherwise only you can." checked={shared} onChange={(e) => setShared(e.target.checked)} />
-        <Checkbox label="Call a webhook when it crosses a threshold" description="Checked every minute. The webhook is called when more lines match than the threshold, and again when it is back under." checked={alert} onChange={(e) => setAlert(e.target.checked)} />
-        {alert && (
-          <div className="flex flex-wrap items-end gap-3">
-            <TextField label="More than" type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} hint="lines" />
-            <TextField label="In" type="number" min={1} max={1440} value={windowMinutes} onChange={(e) => setWindow(e.target.value)} hint="minutes" />
-            <TextField label="Webhook" type="url" value={webhookUrl} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/logs" className="min-w-0 grow" />
-          </div>
-        )}
-        {error && (
-          <Callout tone="danger" title="Not saved">
-            {error}
-          </Callout>
-        )}
-        <div>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      size="lg"
+      title={view ? `Change ${view.name}` : "Save a view"}
+      onSubmit={submit}
+      footer={
+        <>
+          <Button type="button" onClick={onCancel}>
+            Cancel
+          </Button>
           <Button type="submit" variant="primary" disabled={!name.trim() || !query.trim() || (alert && !webhookUrl)}>
             Save
           </Button>
+        </>
+      }
+    >
+      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" />
+      <TextField label="LogsQL query" mono value={query} onChange={(e) => setQuery(e.target.value)} placeholder="service:checkout level:error" />
+      <Checkbox label="Everyone can see it" description="Otherwise only you can." checked={shared} onChange={(e) => setShared(e.target.checked)} />
+      <Checkbox label="Call a webhook when it crosses a threshold" description="Checked every minute. The webhook is called when more lines match than the threshold, and again when it is back under." checked={alert} onChange={(e) => setAlert(e.target.checked)} />
+      {alert && (
+        <div className="flex flex-wrap items-end gap-3">
+          <TextField label="More than" type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} hint="lines" />
+          <TextField label="In" type="number" min={1} max={1440} value={windowMinutes} onChange={(e) => setWindow(e.target.value)} hint="minutes" />
+          <TextField label="Webhook" type="url" value={webhookUrl} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/logs" className="min-w-0 grow" />
         </div>
-      </form>
-    </Panel>
+      )}
+      {error && (
+        <Callout tone="danger" title="Not saved">
+          {error}
+        </Callout>
+      )}
+    </Dialog>
   );
 }
 
@@ -124,15 +131,26 @@ export function ViewsPage({ call }: { call: Call }) {
             setEditing(null);
             reload();
           }}
+          onCancel={() => setEditing(null)}
         />
       )}
       {secret && (
-        <Callout tone="warning" title={`The webhook secret of ${secret.name}`} onDismiss={() => setSecret(undefined)}>
-          <span className="flex flex-col gap-2">
-            <span>It is shown once. Calls carry webhook-id, webhook-timestamp and webhook-signature headers (Standard Webhooks): check the signature with this secret before you trust a call.</span>
-            <Code label="Webhook secret">{secret.secret}</Code>
-          </span>
-        </Callout>
+        <Dialog
+          open
+          onOpenChange={(open) => !open && setSecret(undefined)}
+          icon={<Check aria-hidden className="size-4" />}
+          iconTone="success"
+          title={`The webhook secret of ${secret.name}`}
+          description="It is shown once. Calls carry webhook-id, webhook-timestamp and webhook-signature headers (Standard Webhooks): check the signature with this secret before you trust a call."
+          footer={
+            <Button variant="primary" onClick={() => setSecret(undefined)}>
+              Done
+            </Button>
+          }
+        >
+          <Code label="Webhook secret">{secret.secret}</Code>
+          <Callout tone="warning" title="Closing this dialog hides the secret" />
+        </Dialog>
       )}
       {data?.views.length === 0 ? (
         <EmptyState title="No saved views yet">Search in Explorer, then Save view; or add one here.</EmptyState>

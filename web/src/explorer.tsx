@@ -1,4 +1,4 @@
-import { Button, Callout, Checkbox, EntityChip, FacetFilter, FilterBar, LOG_LEVEL_META, navigate, PageHeader, Panel, QueryBar, StackedBarChart, StatusBadge, TextField, TimeRangePicker, TONE_COLORS, toLogLevel, cn } from "@openasy/ui";
+import { Button, Callout, Checkbox, Dialog, EntityChip, FacetFilter, FilterBar, LOG_LEVEL_META, navigate, PageHeader, Panel, QueryBar, StackedBarChart, StatusBadge, TextField, TimeRangePicker, TONE_COLORS, toLogLevel, cn } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
 import { Bookmark, ChevronRight, Radio } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -95,7 +95,7 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
   );
 }
 
-function SaveView({ call, query, onSaved }: { call: Call; query: string; onSaved: (v: View) => void }) {
+function SaveView({ call, query, onSaved, onCancel }: { call: Call; query: string; onSaved: (v: View) => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [shared, setShared] = useState(true);
   const [error, setError] = useState<string>();
@@ -108,15 +108,26 @@ function SaveView({ call, query, onSaved }: { call: Call; query: string; onSaved
     }
   };
   return (
-    <Panel title="Save this view" description={<span className="font-mono text-xs">{query}</span>}>
-      <form onSubmit={save} className="flex flex-wrap items-end gap-3">
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" error={error} />
-        <Checkbox label="Everyone can see it" checked={shared} onChange={(e) => setShared(e.target.checked)} />
-        <Button type="submit" variant="primary" disabled={!name.trim()}>
-          Save
-        </Button>
-      </form>
-    </Panel>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title="Save this view"
+      description={<span className="font-mono text-xs">{query}</span>}
+      onSubmit={save}
+      footer={
+        <>
+          <Button type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={!name.trim()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" error={error} />
+      <Checkbox label="Everyone can see it" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+    </Dialog>
   );
 }
 
@@ -178,7 +189,7 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
               Live tail
             </Button>
             {can("editor") && (
-              <Button icon={<Bookmark />} onClick={() => setSaving((s) => !s)} aria-expanded={saving}>
+              <Button icon={<Bookmark />} onClick={() => setSaving(true)}>
                 Save view
               </Button>
             )}
@@ -204,6 +215,7 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
             setSaved(v);
             setSaving(false);
           }}
+          onCancel={() => setSaving(false)}
         />
       )}
       {saved && (
