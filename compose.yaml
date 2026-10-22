@@ -1,0 +1,61 @@
+# Logs and one logs-agent. Logs keeps logs in VictoriaLogs inside its one container; the agent reads the journal and
+# container logs of hosts over SSH and keeps the SSH certificate authority; nothing is installed on the hosts
+# (ADR 0031, 0035). Hosts that already ship logs (rsyslog, Vector, Fluent Bit, OpenTelemetry) send them to Logs instead.
+#
+#   openssl rand -hex 32 > openasy-kek         # Logs' key: ingest tokens, sign-in secrets (ADR 0021)
+#   openssl rand -hex 32 > openasy-agent-kek   # the agent's key: its SSH CA and keys. Keep both with your backups
+#   docker compose up -d logs
+#   docker compose logs logs | grep 'no owner yet'   # the one-time link that creates the owner account
+#   # Settings, Agents, Add agent, then:
+#   LOGS_ENROLL_TOKEN=... docker compose up -d logs-agent
+services:
+  logs:
+    image: ghcr.io/openasy/logs:0.1.0
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080"   # UI, API and ingest; put a TLS proxy in front to reach it from elsewhere
+      - "6514:6514"             # Syslog over TLS; remove if no host sends Syslog
+    volumes:
+      - logs-data:/data   # SQLite (sources, pipelines, views, people) and VictoriaLogs' storage
+    secrets:
+      - openasy-kek   # mounted at /run/secrets/openasy-kek
+    environment:
+      # The address people open Logs at; with a TLS proxy in front, its https:// URL.
+      LOGS_PUBLIC_URL: ${LOGS_PUBLIC_URL:-http://localhost:8080}
+      # Sign in with your identity provider (OIDC), see the README:
+      # LOGS_OIDC_ISSUER: https://login.example.com
+      # LOGS_OIDC_CLIENT_ID: logs
+      # LOGS_OIDC_CLIENT_SECRET: ${LOGS_OIDC_CLIENT_SECRET}
+
+  logs-agent:
+    image: ghcr.io/openasy/logs-agent:0.1.0   # always the same version as logs
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]   # SSH keys and certificates for one connection; never on a volume
+    volumes:
+      - logs-agent-data:/data   # its CA, fixed key and secret, sealed with its own key
+    secrets:
+      - source: openasy-agent-kek
+        target: openasy-agent-kek   # mounted at /run/secrets/openasy-agent-kek
+    environment:
+      LOGS_URL: http://logs:8080
+      # One-time, from Settings, Agents; only needed for the first start.
+      LOGS_ENROLL_TOKEN: ${LOGS_ENROLL_TOKEN:-}
+    depends_on:
+      - logs
+
+volumes:
+  logs-data:
+  logs-agent-data:
+
+secrets:
+  openasy-kek:
+    file: ./openasy-kek
+  openasy-agent-kek:
+    file: ./openasy-agent-kek
