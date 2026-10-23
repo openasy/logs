@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createAuth, oidcFromEnv, readSecretsKey } from "@openasy/auth";
 import { collectGauges, createApp, createMetricsHandler } from "./app.ts";
 import { openDb } from "./db.ts";
+import { watchHosts } from "./hosts.ts";
 import { createKeyring } from "./kek.ts";
 import { log } from "./log.ts";
 import { createLogs } from "./logs.ts";
@@ -76,6 +77,16 @@ const syslog = () =>
   };
 
 const metricsPort = process.env.LOGS_METRICS_PORT ? Number(process.env.LOGS_METRICS_PORT) : undefined;
+// The install's servers, one file for every product that reaches them (ADR 0052).
+const hostsPath = process.env.OPENASY_HOSTS?.trim() || undefined;
+const hostsFile = hostsPath
+  ? watchHosts(hostsPath, (list) => logs.syncFile(list), {
+      onChange: (s) =>
+        s.error
+          ? log("error", "hosts file not applied; the hosts from its last good version stay", { path: s.path, error: s.error })
+          : log(s.warnings.length ? "warn" : "info", "hosts file applied", { path: s.path, entries: s.entries, warnings: s.warnings }),
+    })
+  : undefined;
 const products = parseProducts(process.env.OPENASY_PRODUCTS);
 if (products.invalid.length) log("warn", "OPENASY_PRODUCTS: left out entries that are not id=https://address", { entries: products.invalid });
 const server = createServer(
@@ -97,6 +108,7 @@ const server = createServer(
       await waitHealthy(vlogs);
     },
     products: products.products,
+    hostsFile: hostsFile && (() => hostsFile.state),
   }),
 );
 // Long batches from shippers and agents: allow them the time to arrive.
@@ -129,6 +141,7 @@ const timers: NodeJS.Timeout[] = [
 function shutdown(signal: string) {
   log("info", "shutting down", { signal });
   for (const t of timers) clearInterval(t);
+  hostsFile?.stop();
   metricsServer?.close();
   setTimeout(() => process.exit(1), 15_000).unref();
   server.close(async () => {

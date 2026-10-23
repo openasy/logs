@@ -2,7 +2,7 @@ import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, navigate, PageHea
 import { useAuth } from "@openasy/auth/react";
 import { Check, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { Agent, AgentSetup, Host, Source } from "./api.ts";
+import type { Agent, AgentSetup, Host, Source, Summary } from "./api.ts";
 import { ago, Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
 
 function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; agents: Agent[]; sources: Source[]; onAdded: () => void; onCancel: () => void }) {
@@ -59,7 +59,12 @@ function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () =
         <span>On the host, this must print the same fingerprint:</span>
         <Code label="Command to run on the host">{`ssh-keygen -lf /etc/ssh/ssh_host_${key.type.includes("ed25519") ? "ed25519" : key.type.startsWith("ecdsa") ? "ecdsa" : "rsa"}_key.pub`}</Code>
         <span className="logs-wrap font-mono text-xs">{key.fingerprint}</span>
-        {can("admin") && (
+        {host.fileHostKey && (
+          <span>
+            The hosts file trusts <span className="logs-wrap font-mono text-xs">{host.fileHostKey}</span> for this host, and the host presents another key. Check the host; if the key is right, change hostKey in the file.
+          </span>
+        )}
+        {can("admin") && !host.fileHostKey && (
           <span>
             <Button variant="primary" icon={<KeyRound />} onClick={() => void call(`/api/v1/hosts/${host.id}/host-key/accept`, { method: "POST", body: JSON.stringify({ fingerprint: key.fingerprint }) }).then(onDone)}>
               It matches: accept
@@ -77,9 +82,20 @@ export function HostsPage({ call }: { call: Call }) {
   const agents = useData<{ agents: Agent[] }>(call, "/api/v1/agents", 0).data?.agents ?? [];
   const sources = (useData<{ sources: Source[] }>(call, "/api/v1/sources", 0).data?.sources ?? []).filter((s) => s.kind === "ssh");
   const [adding, setAdding] = useState(false);
+  const file = useData<Summary>(call, "/api/v1/summary", 30_000).data?.hostsFile;
   const waiting = (data?.hosts ?? []).filter((h) => h.pendingHostKeys.length > 0);
   const cols: Column<Host>[] = [
-    { id: "name", header: "Host", cell: (h) => <a href={explore(`host:${quote(h.name)}`)}>{h.name}</a>, sortValue: (h) => h.name },
+    {
+      id: "name",
+      header: "Host",
+      cell: (h) => (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <a href={explore(`host:${quote(h.name)}`)}>{h.name}</a>
+          {h.origin === "file" && <Badge tone="neutral">From file</Badge>}
+        </span>
+      ),
+      sortValue: (h) => h.name,
+    },
     { id: "address", header: "Address", width: "150px", mono: true, cell: (h) => `${h.address}${h.port === 22 ? "" : `:${h.port}`}` },
     { id: "status", header: "Status", width: "190px", cell: (h) => <span title={h.statusDetail ?? undefined}><Status status={h.status} /></span> },
     { id: "lines", header: "Lines", width: "90px", align: "right", mono: true, cell: (h) => count(h.linesIn), sortValue: (h) => h.linesIn },
@@ -106,7 +122,7 @@ export function HostsPage({ call }: { call: Call }) {
               Read now
             </Button>
           )}
-          {can("admin") && (
+          {can("admin") && h.origin === "ui" && (
             <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(`Stop reading ${h.name}? Its lines stay until retention removes them.`) && void call(`/api/v1/hosts/${h.id}`, { method: "DELETE" }).then(reload)}>
               Remove
             </Button>
@@ -133,6 +149,16 @@ export function HostsPage({ call }: { call: Call }) {
         <EmptyState title="Add an agent first" action={<Button variant="primary" onClick={() => navigate("/agents")}>Add an agent</Button>}>
           logs-agent is installed once per network and reads the hosts there. Hosts that already send their logs need no agent: add a source for them instead.
         </EmptyState>
+      )}
+      {file?.error && (
+        <Callout tone="danger" title="The hosts file is not applied">
+          {file.error} The hosts from its last good version stay until it is fixed ({file.path}).
+        </Callout>
+      )}
+      {!!file?.warnings.length && (
+        <Callout tone="warning" title="The hosts file has something to fix">
+          {file.warnings.join(" ")}
+        </Callout>
       )}
       {adding && (
         <AddHost

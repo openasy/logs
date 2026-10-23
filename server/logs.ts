@@ -3,6 +3,7 @@
 // host from this cursor"), runs the script built into it and sends back the lines (ADR 0031, 0035).
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import type { HostEntry } from "./hosts.ts";
 import type { Keyring } from "./kek.ts";
 import { log } from "./log.ts";
 import { checkProcessors, compile, DEFAULT_PROCESSORS, MAX_MSG, PipelineError, toTime, type Entry, type Processor } from "./pipeline.ts";
@@ -85,6 +86,8 @@ interface HostRow {
   key_requested: number;
   lease_until: string | null;
   created_at: string;
+  origin: "ui" | "file";
+  file_host_key: string | null;
 }
 
 interface ViewRow {
@@ -530,12 +533,25 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     const keys = b.hostKeys;
     const keyList = Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === "string" && HOST_KEY.test(k)) ? (keys as string[]) : undefined;
     if (b.ok === true && keyList && b.entries === undefined) {
+      // The hosts file vouches for a key with its fingerprint (ADR 0052): that key is pinned without an admin.
+      const vouched = h.file_host_key ? keyList.find((k) => fingerprint(k) === h.file_host_key) : undefined;
+      if (vouched) {
+        db.prepare("UPDATE hosts SET key_requested = 0, host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1 WHERE id = ?").run(JSON.stringify([vouched]), h.id);
+        log("info", "host key trusted from the hosts file", { host: h.name, fingerprint: h.file_host_key });
+        return { status: "accepted" };
+      }
       const pinned = JSON.parse(h.host_keys) as string[];
       const same = pinned.length > 0 && keyList.every((k) => pinned.includes(k));
       db.prepare("UPDATE hosts SET key_requested = 0, pending_host_keys = ?, status = ?, status_detail = ? WHERE id = ?").run(
         JSON.stringify(same ? [] : keyList),
         same ? (h.status === "host-key-changed" ? "pending" : h.status) : pinned.length ? "host-key-changed" : "host-key-pending",
-        same ? h.status_detail : pinned.length ? "The host presents a different key. Check it on the host, then accept it." : "Check the fingerprint on the host, then accept it.",
+        same
+          ? h.status_detail
+          : h.file_host_key
+            ? `The host presents a key that is not ${h.file_host_key} from the hosts file. Check the host, then fix hostKey in the file.`
+            : pinned.length
+              ? "The host presents a different key. Check it on the host, then accept it."
+              : "Check the fingerprint on the host, then accept it.",
         h.id,
       );
       return { status: "accepted" };
@@ -588,6 +604,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       name: h.name,
       agent: { id: agent.id, name: agent.name },
       source: { id: source.id, name: source.name },
+      origin: h.origin,
+      fileHostKey: h.file_host_key,
       address: h.address,
       port: h.port,
       user: h.ssh_user,
@@ -684,7 +702,7 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   }
 
   function updateHost(id: string, b: Record<string, unknown>) {
-    const h = requireHost(id);
+    const h = fromFile(requireHost(id), "Change it there.");
     const v = hostInput(b, true);
     if (v.name && v.name !== h.name && db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name)) throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
     const agentId = v.agentId ?? h.agent_id;
@@ -714,6 +732,7 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
 
   function acceptHostKey(id: string, fp: unknown) {
     const h = requireHost(id);
+    if (h.file_host_key) fromFile(h, "Its key is the one hostKey names there; change hostKey to trust another.");
     const key = (JSON.parse(h.pending_host_keys) as string[]).find((k) => fingerprint(k) === fp);
     if (typeof fp !== "string" || !key) throw bad("fingerprint must be one of the pending host keys, as SHA256:...");
     db.prepare("UPDATE hosts SET host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1, lease_until = NULL WHERE id = ?").run(JSON.stringify([key]), id);
@@ -726,8 +745,61 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     db.prepare("UPDATE hosts SET read_requested = 1 WHERE id = ?").run(id);
   }
 
+  const fromFile = (h: HostRow, what: string) => {
+    if (h.origin === "file") throw new LogsError(409, "conflict", `This host comes from the hosts file (OPENASY_HOSTS). ${what}`);
+    return h;
+  };
+
+  /**
+   * Makes the hosts from the hosts file match it (ADR 0052): adds, changes and removes them, and leaves hosts added
+   * here alone. Logs reaches hosts directly, so one behind a jump host is left out with a warning. An entry that
+   * cannot be added yet, such as one whose agent is not enrolled, is a warning, and a host it made before is kept. A
+   * new address, port or agent, or another hostKey than the pinned key, is a new trust decision. Returns what to fix.
+   */
+  function syncFile(entries: HostEntry[]): string[] {
+    const warnings: string[] = [];
+    const agents = db.prepare("SELECT id, name FROM agents").all() as Array<{ id: string; name: string }>;
+    for (const e of entries) {
+      if (e.jump) {
+        warnings.push(`${e.name}: Logs reaches hosts directly, not through a jump host like ${e.jump}; it is left out.`);
+        continue;
+      }
+      let agentId: string | undefined;
+      if (e.agent) {
+        agentId = agents.find((x) => x.name === e.agent)?.id;
+        if (!agentId) warnings.push(`${e.name}: no agent is named ${e.agent}; it is added once one is.`);
+      } else if (agents.length === 1) agentId = agents[0]!.id;
+      else warnings.push(agents.length ? `${e.name}: name the agent that reaches it with agent:, as there are ${agents.length}.` : `${e.name}: it is added once an agent is, under Agents.`);
+      if (!agentId) continue;
+      const h = db.prepare("SELECT * FROM hosts WHERE name = ?").get(e.name) as HostRow | undefined;
+      if (h?.origin === "ui") {
+        warnings.push(`${e.name}: a host with this name was added in Logs; remove it there to let the file manage it.`);
+        continue;
+      }
+      if (!h) {
+        db.prepare(
+          "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at, origin, file_host_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 60, ?, 'file', ?)",
+        ).run(randomUUID(), e.name, agentId, defaultSshSource(), e.address, e.port, e.user, e.auth, e.containers ? 1 : 0, iso(), e.hostKey);
+        continue;
+      }
+      const pinned = JSON.parse(h.host_keys) as string[];
+      const moved = e.address !== h.address || e.port !== h.port || agentId !== h.agent_id;
+      const vouchesOther = !!e.hostKey && e.hostKey !== h.file_host_key && pinned.length > 0 && !pinned.some((k) => fingerprint(k) === e.hostKey);
+      db.prepare("UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, file_host_key = ? WHERE id = ?").run(agentId, e.address, e.port, e.user, e.auth, e.containers ? 1 : 0, e.hostKey, h.id);
+      if (moved || vouchesOther) db.prepare("UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?").run(h.id);
+      // A hostKey given now for a host whose key is not pinned yet: ask for the key again, to trust it if it matches.
+      else if (e.hostKey && e.hostKey !== h.file_host_key && !pinned.length) db.prepare("UPDATE hosts SET key_requested = 1, lease_until = NULL WHERE id = ?").run(h.id);
+    }
+    // Hosts that left the file go; lines already stored stay until retention removes them.
+    const named = new Set(entries.filter((e) => !e.jump).map((e) => e.name));
+    for (const h of db.prepare("SELECT id, name FROM hosts WHERE origin = 'file'").all() as Array<{ id: string; name: string }>) {
+      if (!named.has(h.name)) db.prepare("DELETE FROM hosts WHERE id = ?").run(h.id);
+    }
+    return warnings;
+  }
+
   function deleteHost(id: string) {
-    requireHost(id);
+    fromFile(requireHost(id), "Remove it there.");
     // Lines already stored stay until retention removes them, like any other logs.
     db.prepare("DELETE FROM hosts WHERE id = ?").run(id);
   }
@@ -1035,6 +1107,7 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     listHosts: () => (db.prepare("SELECT * FROM hosts ORDER BY name").all() as unknown as HostRow[]).map(toHost),
     host: (id: string) => toHost(requireHost(id)),
     createHost,
+    syncFile,
     updateHost,
     deleteHost,
     requestHostKey,

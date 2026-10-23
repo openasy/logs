@@ -97,6 +97,10 @@ export interface Host {
   name: string;
   agent: { id: string; name: string };
   source: { id: string; name: string };
+  /** file: from the hosts file (OPENASY_HOSTS); changed there, not here. */
+  origin: "ui" | "file";
+  /** The fingerprint the hosts file trusts for this host. */
+  fileHostKey: string | null;
   address: string;
   port: number;
   user: string;
@@ -154,6 +158,16 @@ export interface Summary extends Settings {
   linesLastHour: number | null;
   storedBytes: number | null;
   alertsFiring: number;
+  hostsFile: HostsFile | null;
+}
+
+/** The hosts file (ADR 0052): a file that cannot be applied leaves the hosts from its last good version. */
+export interface HostsFile {
+  path: string;
+  appliedAt: string | null;
+  entries: number;
+  error: string | null;
+  warnings: string[];
 }
 
 export interface SearchRecord {

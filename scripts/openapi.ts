@@ -114,6 +114,8 @@ const schemas: Record<string, S> = {
     name: str,
     agent: obj({ id: str, name: str }),
     source: obj({ id: str, name: str }),
+    origin: { type: "string", enum: ["ui", "file"], description: "file: from the hosts file (OPENASY_HOSTS, ADR 0052); changed there, so PATCH and DELETE answer 409. Fetching its key still works." },
+    fileHostKey: { ...nul(str), description: "The fingerprint hostKey gives in the hosts file: a host that presents that key is trusted without an admin, and no other key can be accepted here." },
     address: str,
     port: int,
     user: str,
@@ -196,7 +198,18 @@ const schemas: Record<string, S> = {
     retentionDays: int,
     maxDiskGb: int,
     alertsFiring: int,
+    hostsFile: { ...nul(ref("HostsFile")), description: "null when OPENASY_HOSTS is not set." },
   }),
+  HostsFile: {
+    ...obj({
+      path: str,
+      appliedAt: { ...nul(dt), description: "When it was last read and applied; null if it never was." },
+      entries: int,
+      error: { ...nul(str), description: "Why the file on disk is not applied." },
+      warnings: { ...arr(str), description: "What to fix that did not stop the file from being applied, such as a host whose agent is not enrolled yet." },
+    }),
+    description: "The hosts file (ADR 0052), shared with Infrastructure. It is read again within a minute of a change; a file that cannot be applied leaves the hosts from its last good version.",
+  },
 };
 
 const P = (...codes: number[]) => Object.fromEntries(codes.map((c) => [String(c), { $ref: "#/components/responses/Problem" }]));
@@ -379,12 +392,12 @@ const spec = {
     "/api/v1/hosts/{id}": {
       get: op({ id: "getHost", tag: "Hosts", summary: "Get a host", role: "viewer", params: [id], responses: { "200": ok(ref("Host")), ...R("v"), ...P(404) } }),
       patch: op({ id: "updateHost", tag: "Hosts", summary: "Change a host", description: "A new address or port unpins the host key.", role: "admin", params: [id], body: { type: "object", properties: (schemas.HostInput as { properties: S }).properties }, responses: { "200": ok(ref("Host")), ...R("a"), ...P(400, 404, 409, 422) } }),
-      delete: op({ id: "deleteHost", tag: "Hosts", summary: "Stop reading a host", description: "Its lines stay until retention removes them.", role: "admin", params: [id], responses: { "204": { description: "Removed" }, ...R("a"), ...P(404) } }),
+      delete: op({ id: "deleteHost", tag: "Hosts", summary: "Stop reading a host", description: "Its lines stay until retention removes them.", role: "admin", params: [id], responses: { "204": { description: "Removed" }, ...R("a"), ...P(404, 409) } }),
     },
     "/api/v1/hosts/{id}/read": { post: op({ id: "readHost", tag: "Hosts", summary: "Read now", role: "editor", params: [id], responses: { "202": ok(obj({ status: str }), "Requested"), ...R("e"), ...P(404, 409) } }) },
     "/api/v1/hosts/{id}/host-key": { post: op({ id: "fetchHostKey", tag: "Hosts", summary: "Ask the host for its key again", role: "admin", params: [id], responses: { "200": ok(ref("Host")), ...R("a"), ...P(404) } }) },
     "/api/v1/hosts/{id}/host-key/accept": {
-      post: op({ id: "acceptHostKey", tag: "Hosts", summary: "Accept a host key", description: "After checking on the host that `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` prints this fingerprint.", role: "admin", params: [id], body: obj({ fingerprint: str }), responses: { "200": ok(ref("Host")), ...R("a"), ...P(400, 404, 422) } }),
+      post: op({ id: "acceptHostKey", tag: "Hosts", summary: "Accept a host key", description: "After checking on the host that `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` prints this fingerprint.", role: "admin", params: [id], body: obj({ fingerprint: str }), responses: { "200": ok(ref("Host")), ...R("a"), ...P(400, 404, 409, 422) } }),
     },
     "/healthz": { get: { operationId: "healthz", tags: ["Product"], summary: "Liveness", responses: { "200": ok(obj({ status: str })) } } },
     "/readyz": { get: { operationId: "readyz", tags: ["Product"], summary: "Readiness: the database and VictoriaLogs", responses: { "200": ok(obj({ status: str })), "503": ok(obj({ status: str }), "Not ready") } } },

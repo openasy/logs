@@ -49,6 +49,13 @@ needs that account in the `systemd-journal` group; without it only its own journ
 Hosts are prepared as for Infrastructure (see the [infra README](https://github.com/openasy/infra#prepare-a-host)).
 Values that look like passwords, tokens or keys are masked before they leave the network.
 
+Hosts can also come from the install's hosts file, the same file Infrastructure reads (ADR 0052): mount it and set
+`OPENASY_HOSTS`. Logs reads `name`, `address`, `port`, `user`, `auth`, `containers`, `agent` and `hostKey` (see the
+[infra README](https://github.com/openasy/infra#from-a-file)); a host that presents the key `hostKey` names is
+trusted without an admin. Logs reaches hosts directly, so an entry with `jump` is left out with a warning. Hosts
+from the file show **From file** and are changed there; the API answers 409 to a change or delete. A file with a
+mistake is not applied at all, and the Hosts page and the log say what to fix.
+
 ## Configuration
 
 | Variable | Default | |
@@ -56,6 +63,7 @@ Values that look like passwords, tokens or keys are masked before they leave the
 | `PORT` | `8080` | HTTP port |
 | `LOGS_PUBLIC_URL` | `http://localhost:8080` | The address people open, with `https://` behind your TLS proxy |
 | `OPENASY_PRODUCTS` | | The install's other OpenAsy products, for the product switcher. Give every product the same value |
+| `OPENASY_HOSTS` | | A YAML file of hosts to read, shared with Infrastructure; see [Getting logs in](#getting-logs-in) |
 | `LOGS_SECRETS_KEY_FILE` | `/run/secrets/openasy-kek` | 32-byte key-encryption key |
 | `LOGS_DATA` | `/data` | SQLite file and VictoriaLogs' storage |
 | `LOGS_SYSLOG` | `true` | `false` turns every Syslog receiver off |

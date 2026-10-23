@@ -4,6 +4,7 @@ import { extname, join, normalize } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createGunzip, createInflate } from "node:zlib";
 import { AuthError, mergeOpenApi, sendProblem, type Auth, type Principal, type Role } from "@openasy/auth";
+import type { HostsFileState } from "./hosts.ts";
 import { IngestError, parseBulk, parseJsonLines, parseOtlpJson, parseOtlpProtobuf } from "./ingest.ts";
 import { log } from "./log.ts";
 import { LogsError, type Actor, type Logs, type ProblemCode } from "./logs.ts";
@@ -44,6 +45,8 @@ export interface AppOptions {
   onSettings?: (s: { retentionDays: number; maxDiskGb: number }) => Promise<void>;
   /** The install's OpenAsy products and their addresses, from OPENASY_PRODUCTS, for the product switcher. */
   products?: ProductLink[];
+  /** Where the hosts file stands (OPENASY_HOSTS, ADR 0052); absent when there is none. */
+  hostsFile?: () => HostsFileState;
 }
 
 const TYPES: Record<string, string> = {
@@ -187,7 +190,7 @@ export async function collectGauges(o: Pick<AppOptions, "logs" | "vlogs" | "sysl
 /** Answers Elasticsearch clients the way they expect, so Beats, Fluent Bit and Vector send without changes. */
 const ES_HEADERS = { "x-elastic-product": "Elasticsearch" };
 
-export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, openapi, serveMetrics = true, syslog, victoriaLogs, onSettings, products = [] }: AppOptions) {
+export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, openapi, serveMetrics = true, syslog, victoriaLogs, onSettings, products = [], hostsFile }: AppOptions) {
   const spec = openapi && JSON.stringify({ ...mergeOpenApi(openapi), info: { ...(openapi.info as object), version } });
   const created = (res: ServerResponse, data: unknown) => (json(res, 201, data), undefined);
   const noContent = (res: ServerResponse) => {
@@ -206,7 +209,7 @@ export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, ope
   const routes: Route[] = [
     { method: "GET", path: "/api/v1/version", auth: "none", handle: () => ({ product: "logs", version }) },
     { method: "GET", path: "/api/v1/products", auth: "viewer", handle: () => ({ products }) },
-    { method: "GET", path: "/api/v1/summary", auth: "viewer", handle: () => logs.summary() },
+    { method: "GET", path: "/api/v1/summary", auth: "viewer", handle: async () => ({ ...(await logs.summary()), hostsFile: hostsFile?.() ?? null }) },
 
     // Search (ADR 0035): LogsQL as it is. Every search is recorded with who asked.
     {

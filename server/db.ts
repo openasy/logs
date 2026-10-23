@@ -96,6 +96,10 @@ const MIGRATIONS = [
      query TEXT NOT NULL
    );
    CREATE INDEX searches_at ON searches (at)`,
+  `-- Hosts from the hosts file (OPENASY_HOSTS, ADR 0052) are changed there, not here; origin says which. file_host_key is
+   -- the fingerprint the file gives: a host that presents that key is trusted without an admin comparing it.
+   ALTER TABLE hosts ADD COLUMN origin TEXT NOT NULL DEFAULT 'ui' CHECK (origin IN ('ui', 'file'));
+   ALTER TABLE hosts ADD COLUMN file_host_key TEXT`,
 ];
 
 /** Opens the product's single SQLite file in WAL mode (ADR 0011) and migrates it forward. */

@@ -21,11 +21,14 @@ services:
       - "6514:6514"             # Syslog over TLS; remove if no host sends Syslog
     volumes:
       - logs-data:/data   # SQLite (sources, pipelines, views, people) and VictoriaLogs' storage
+      # - ./hosts.yaml:/config/hosts.yaml:ro   # the install's servers, shared with Infrastructure
     secrets:
       - openasy-kek   # mounted at /run/secrets/openasy-kek
     environment:
       # The address people open Logs at; with a TLS proxy in front, its https:// URL.
       LOGS_PUBLIC_URL: ${LOGS_PUBLIC_URL:-http://localhost:8080}
+      # Hosts from the hosts file, the same file Infrastructure reads (ADR 0052):
+      # OPENASY_HOSTS: /config/hosts.yaml
       # Sign in with your identity provider (OIDC), see the README:
       # OPENASY_OIDC_ISSUER: https://login.example.com
       # OPENASY_OIDC_CLIENT_ID: logs
