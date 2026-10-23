@@ -1,13 +1,15 @@
-import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, PageHeader, Panel, TextField, type Column } from "@openasy/ui";
+import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, PageHeader, Panel, TextField, type Column, useAgo } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
 import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { NewView, View } from "./api.ts";
-import { ago, Code, List, useData, type Call } from "./shared.tsx";
+import { Code, List, useData, type Call } from "./shared.tsx";
+import { useT, type T } from "./i18n.ts";
 
-const ALERT = { ok: { tone: "success", label: "Under" }, firing: { tone: "danger", label: "Over" }, error: { tone: "warning", label: "Not checked" } } as const;
+const ALERT = (t: T) => ({ ok: { tone: "success", label: t("alert.under") }, firing: { tone: "danger", label: t("alert.over") }, error: { tone: "warning", label: t("alert.notChecked") } } as const);
 
 function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; onDone: (r: NewView) => void; onCancel: () => void }) {
+  const t = useT();
   const [name, setName] = useState(view?.name ?? "");
   const [query, setQuery] = useState(view?.query ?? "");
   const [shared, setShared] = useState(view?.shared ?? true);
@@ -30,32 +32,32 @@ function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; o
       open
       onOpenChange={(open) => !open && onCancel()}
       size="lg"
-      title={view ? `Change ${view.name}` : "Save a view"}
+      title={view ? t("viewForm.change", { name: view.name }) : t("viewForm.saveAView")}
       onSubmit={submit}
       footer={
         <>
           <Button type="button" onClick={onCancel}>
-            Cancel
+            {t("viewForm.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={!name.trim() || !query.trim() || (alert && !webhookUrl)}>
-            Save
+            {t("viewForm.save")}
           </Button>
         </>
       }
     >
-      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" />
-      <TextField label="LogsQL query" mono value={query} onChange={(e) => setQuery(e.target.value)} placeholder="service:checkout level:error" />
-      <Checkbox label="Everyone can see it" description="Otherwise only you can." checked={shared} onChange={(e) => setShared(e.target.checked)} />
-      <Checkbox label="Call a webhook when it crosses a threshold" description="Checked every minute. The webhook is called when more lines match than the threshold, and again when it is back under." checked={alert} onChange={(e) => setAlert(e.target.checked)} />
+      <TextField label={t("viewForm.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("viewForm.checkoutErrors")} />
+      <TextField label={t("viewForm.logsqlQuery")} mono value={query} onChange={(e) => setQuery(e.target.value)} placeholder="service:checkout level:error" />
+      <Checkbox label={t("viewForm.everyoneCanSeeIt")} description={t("viewForm.otherwiseOnlyYouCan")} checked={shared} onChange={(e) => setShared(e.target.checked)} />
+      <Checkbox label={t("viewForm.callAWebhookWhenIt")} description={t("viewForm.checkedEveryMinuteTheWebhook")} checked={alert} onChange={(e) => setAlert(e.target.checked)} />
       {alert && (
         <div className="flex flex-wrap items-end gap-3">
-          <TextField label="More than" type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} hint="lines" />
-          <TextField label="In" type="number" min={1} max={1440} value={windowMinutes} onChange={(e) => setWindow(e.target.value)} hint="minutes" />
-          <TextField label="Webhook" type="url" value={webhookUrl} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/logs" className="min-w-0 grow" />
+          <TextField label={t("viewForm.moreThan")} type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} hint="lines" />
+          <TextField label={t("viewForm.in")} type="number" min={1} max={1440} value={windowMinutes} onChange={(e) => setWindow(e.target.value)} hint="minutes" />
+          <TextField label={t("viewForm.webhook")} type="url" value={webhookUrl} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/logs" className="min-w-0 grow" />
         </div>
       )}
       {error && (
-        <Callout tone="danger" title="Not saved">
+        <Callout tone="danger" title={t("viewForm.notSaved")}>
           {error}
         </Callout>
       )}
@@ -64,29 +66,30 @@ function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; o
 }
 
 export function ViewsPage({ call }: { call: Call }) {
+  const ago = useAgo();
+  const t = useT();
   const { can, me } = useAuth();
   const { data, reload } = useData<{ views: View[] }>(call, "/api/v1/views", 30_000);
   const [editing, setEditing] = useState<View | "new" | null>(null);
   const [secret, setSecret] = useState<{ name: string; secret: string }>();
   const mayChange = (v: View) => can("admin") || (can("editor") && v.owner.id === me.user.id);
   const cols: Column<View>[] = [
-    { id: "name", header: "View", cell: (v) => <a href={`/explorer?view=${v.id}`}>{v.name}</a>, sortValue: (v) => v.name },
-    { id: "query", header: "Query", cell: (v) => <span className="logs-wrap font-mono text-xs">{v.query}</span> },
-    { id: "owner", header: "Owner", width: "140px", cell: (v) => (v.shared ? v.owner.name : `${v.owner.name}, private`) },
+    { id: "name", header: t("viewsPage.view"), cell: (v) => <a href={`/explorer?view=${v.id}`}>{v.name}</a>, sortValue: (v) => v.name },
+    { id: "query", header: t("viewsPage.query"), cell: (v) => <span className="logs-wrap font-mono text-xs">{v.query}</span> },
+    { id: "owner", header: t("viewsPage.owner"), width: "140px", cell: (v) => (v.shared ? v.owner.name : `${v.owner.name}, private`) },
     {
       id: "alert",
-      header: "Threshold",
+      header: t("viewsPage.threshold"),
       width: "220px",
       cell: (v) =>
         v.alert ? (
           <span className="flex flex-col gap-0.5" title={v.alert.lastError ?? undefined}>
             <span className="flex items-center gap-1.5">
-              <Badge tone={ALERT[v.alert.state].tone}>{ALERT[v.alert.state].label}</Badge>
+              <Badge tone={ALERT(t)[v.alert.state].tone}>{ALERT(t)[v.alert.state].label}</Badge>
               <span className="text-xs">
-                &gt; {v.alert.threshold} in {v.alert.windowMinutes} min
-              </span>
+                {t("viewsPage.gtInMin", { threshold: v.alert.threshold, windowMinutes: v.alert.windowMinutes })}</span>
             </span>
-            <span className="text-xs text-fg-muted">{v.alert.lastCount === null ? "not checked yet" : `${v.alert.lastCount} ${ago(v.alert.lastCheckedAt)}`}</span>
+            <span className="text-xs text-fg-muted">{v.alert.lastCount === null ? t("viewsPage.notCheckedYet") : `${v.alert.lastCount} ${ago(v.alert.lastCheckedAt)}`}</span>
           </span>
         ) : (
           <span className="text-fg-muted">–</span>
@@ -100,10 +103,10 @@ export function ViewsPage({ call }: { call: Call }) {
         mayChange(v) && (
           <span className="flex gap-1">
             <Button size="xs" variant="ghost" icon={<Pencil />} onClick={() => setEditing(v)}>
-              Change
+              {t("viewsPage.change")}
             </Button>
-            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(`Remove ${v.name}?`) && void call(`/api/v1/views/${v.id}`, { method: "DELETE" }).then(reload)}>
-              Remove
+            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("viewsPage.remove", { name: v.name })) && void call(`/api/v1/views/${v.id}`, { method: "DELETE" }).then(reload)}>
+              {t("viewsPage.remove2")}
             </Button>
           </span>
         ),
@@ -112,12 +115,12 @@ export function ViewsPage({ call }: { call: Call }) {
   return (
     <>
       <PageHeader
-        title="Saved views"
-        description="Queries kept for later. Shared views are seen by everyone; a threshold calls a signed webhook, such as Alerts, Slack through a relay, or your own service."
+        title={t("viewsPage.savedViews")}
+        description={t("viewsPage.queriesKeptForLaterShared")}
         actions={
           can("editor") && (
             <Button variant="primary" icon={<Plus />} onClick={() => setEditing("new")}>
-              New view
+              {t("viewsPage.newView")}
             </Button>
           )
         }
@@ -140,23 +143,23 @@ export function ViewsPage({ call }: { call: Call }) {
           onOpenChange={(open) => !open && setSecret(undefined)}
           icon={<Check aria-hidden className="size-4" />}
           iconTone="success"
-          title={`The webhook secret of ${secret.name}`}
-          description="It is shown once. Calls carry webhook-id, webhook-timestamp and webhook-signature headers (Standard Webhooks): check the signature with this secret before you trust a call."
+          title={t("viewsPage.theWebhookSecretOf", { name: secret.name })}
+          description={t("viewsPage.itIsShownOnceCalls")}
           footer={
             <Button variant="primary" onClick={() => setSecret(undefined)}>
-              Done
+              {t("viewsPage.done")}
             </Button>
           }
         >
-          <Code label="Webhook secret">{secret.secret}</Code>
-          <Callout tone="warning" title="Closing this dialog hides the secret" />
+          <Code label={t("viewsPage.webhookSecret")}>{secret.secret}</Code>
+          <Callout tone="warning" title={t("viewsPage.closingThisDialogHidesThe")} />
         </Dialog>
       )}
       {data?.views.length === 0 ? (
-        <EmptyState title="No saved views yet">Search in Explorer, then Save view; or add one here.</EmptyState>
+        <EmptyState title={t("viewsPage.noSavedViewsYet")}>{t("viewsPage.searchInExplorerThenSave")}</EmptyState>
       ) : (
         <Panel flush>
-          <List label="Saved views" rows={data?.views} columns={cols} empty="No views" getRowId={(v) => v.id} />
+          <List label={t("viewsPage.savedViews")} rows={data?.views} columns={cols} empty={t("viewsPage.noViews")} getRowId={(v) => v.id} />
         </Panel>
       )}
     </>

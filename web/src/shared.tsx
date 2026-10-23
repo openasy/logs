@@ -3,6 +3,7 @@ import { useAuth } from "@openasy/auth/react";
 import { Copy } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, MfaSetupRequired, Unauthorized } from "./api.ts";
+import { useT, type T } from "./i18n.ts";
 
 /** Data loading with the session; when it ends, the sign-in screen comes back. */
 export function useApi() {
@@ -46,15 +47,6 @@ export function useData<T>(call: Call, path: string | null, everyMs = 15_000) {
   return { data, error, reload: load };
 }
 
-export function ago(iso: string | null | undefined): string {
-  if (!iso) return "never";
-  const s = Math.round((Date.now() - Date.parse(iso)) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86_400)} d ago`;
-}
-
 export const bytes = (n: number | null | undefined) => {
   if (n == null) return "–";
   const u = ["B", "KiB", "MiB", "GiB", "TiB"];
@@ -71,19 +63,20 @@ export function Level({ level }: { level: string | null }) {
   return level ? <LevelBadge level={toLogLevel(level)} /> : <span aria-hidden />;
 }
 
-const STATUS: Record<string, { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }> = {
-  ok: { tone: "success", label: "Reading" },
-  new: { tone: "info", label: "New" },
-  pending: { tone: "info", label: "Waiting for the first read" },
-  "host-key-pending": { tone: "warning", label: "Check the host key" },
-  "host-key-changed": { tone: "danger", label: "Host key changed" },
-  unreachable: { tone: "danger", label: "Unreachable" },
-  "auth-failed": { tone: "danger", label: "Login refused" },
-  timeout: { tone: "warning", label: "Timed out" },
-  error: { tone: "danger", label: "Failed" },
-};
+const STATUS = (t: T): Record<string, { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }> => ({
+  ok: { tone: "success", label: t("status.reading") },
+  new: { tone: "info", label: t("status.new") },
+  pending: { tone: "info", label: t("status.waitingForTheFirstRead") },
+  "host-key-pending": { tone: "warning", label: t("status.checkTheHostKey") },
+  "host-key-changed": { tone: "danger", label: t("status.hostKeyChanged") },
+  unreachable: { tone: "danger", label: t("status.unreachable") },
+  "auth-failed": { tone: "danger", label: t("status.loginRefused") },
+  timeout: { tone: "warning", label: t("status.timedOut") },
+  error: { tone: "danger", label: t("status.failed") },
+});
 export function Status({ status }: { status: string }) {
-  const s = STATUS[status] ?? { tone: "neutral" as const, label: status };
+  const t = useT();
+  const s = STATUS(t)[status] ?? { tone: "neutral" as const, label: status };
   return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>;
 }
 
@@ -93,6 +86,7 @@ export function copy(text: string) {
 
 /** A file, a command or a token to copy. */
 export function Code({ children, label }: { children: string; label: string }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1.5">
       <pre tabIndex={0} aria-label={label} className="logs-code">
@@ -100,7 +94,7 @@ export function Code({ children, label }: { children: string; label: string }) {
       </pre>
       <div>
         <Button size="xs" icon={<Copy />} onClick={() => copy(children)}>
-          Copy
+          {t("code.copy")}
         </Button>
       </div>
     </div>

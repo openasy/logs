@@ -4,6 +4,7 @@ import { Bookmark, ChevronRight, Radio } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Facets, Line, NewView, Search, View, Volume } from "./api.ts";
 import { count, explore, Level, quote, useData, type Call } from "./shared.tsx";
+import { useT } from "./i18n.ts";
 
 const RANGES: Record<string, number> = { "15m": 15, "1h": 60, "6h": 360, "24h": 1440, "7d": 10_080, "30d": 43_200 };
 /** Fields the facets filter on, in this order; the line's own columns. */
@@ -26,20 +27,22 @@ const time = (iso: string) => {
 const ROW = "grid w-full grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] items-center gap-2 px-3 py-1 text-left";
 
 export function LogHeader() {
+  const t = useT();
   return (
     <div aria-hidden className="grid grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] gap-2 border-b border-line bg-canvas px-3 py-1.5 text-2xs font-medium tracking-wider text-fg-muted uppercase">
       <span />
-      <span>Time</span>
-      <span>Level</span>
-      <span>Host</span>
-      <span>Service</span>
-      <span>Message</span>
+      <span>{t("logHeader.time")}</span>
+      <span>{t("logHeader.level")}</span>
+      <span>{t("logHeader.host")}</span>
+      <span>{t("logHeader.service")}</span>
+      <span>{t("logHeader.message")}</span>
     </div>
   );
 }
 
 /** One line; opened, its fields, each of which adds itself as a filter. */
 export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id: string; open: boolean; onToggle: () => void; onFilter?: (field: string, value: string) => void }) {
+  const t = useT();
   const detailId = `log-detail-${id}`;
   const fields: Array<[string, string]> = [
     ...(["level", "host", "service", "source"] as const).flatMap((k): Array<[string, string]> => (line[k] ? [[k, line[k]]] : [])),
@@ -58,7 +61,7 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
         <span className="truncate font-mono text-xs text-fg">{line.msg}</span>
       </button>
       {open && (
-        <div id={detailId} role="region" aria-label={`Log details ${line.time}`} className="grid gap-3 border-t border-subtle px-3 py-2.5 pl-8 lg:grid-cols-[minmax(0,1fr)_240px]">
+        <div id={detailId} role="region" aria-label={t("logRow.logDetails", { time: line.time })} className="grid gap-3 border-t border-subtle px-3 py-2.5 pl-8 lg:grid-cols-[minmax(0,1fr)_240px]">
           <div className="flex min-w-0 flex-col gap-2">
             <p className="logs-msg m-0 font-mono text-xs text-fg">{line.msg}</p>
             <dl className="grid grid-cols-[160px_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-xs">
@@ -71,7 +74,7 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
                   <dt className="text-fg-muted">{k}</dt>
                   <dd className="m-0 text-fg">
                     {onFilter ? (
-                      <button type="button" className="logs-field" title={`Show only lines with ${k} ${v}`} onClick={() => onFilter(k, v)}>
+                      <button type="button" className="logs-field" title={t("logRow.showOnlyLinesWith", { k, v })} onClick={() => onFilter(k, v)}>
                         {v}
                       </button>
                     ) : (
@@ -84,7 +87,7 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
           </div>
           {line.host && (
             <div className="flex flex-col gap-1.5">
-              <h3 className="m-0 text-xs font-semibold text-fg">This host</h3>
+              <h3 className="m-0 text-xs font-semibold text-fg">{t("logRow.thisHost")}</h3>
               <EntityChip kind="host" value={line.host} href={explore(`host:${quote(line.host)}`)} />
               {line.service && <EntityChip kind="process" value={line.service} href={explore(`service:${quote(line.service)}`)} />}
             </div>
@@ -96,6 +99,7 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
 }
 
 function SaveView({ call, query, onSaved, onCancel }: { call: Call; query: string; onSaved: (v: View) => void; onCancel: () => void }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [shared, setShared] = useState(true);
   const [error, setError] = useState<string>();
@@ -111,27 +115,28 @@ function SaveView({ call, query, onSaved, onCancel }: { call: Call; query: strin
     <Dialog
       open
       onOpenChange={(open) => !open && onCancel()}
-      title="Save this view"
+      title={t("saveView.saveThisView")}
       description={<span className="font-mono text-xs">{query}</span>}
       onSubmit={save}
       footer={
         <>
           <Button type="button" onClick={onCancel}>
-            Cancel
+            {t("saveView.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={!name.trim()}>
-            Save
+            {t("saveView.save")}
           </Button>
         </>
       }
     >
-      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Checkout errors" error={error} />
-      <Checkbox label="Everyone can see it" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+      <TextField label={t("saveView.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("saveView.checkoutErrors")} error={error} />
+      <Checkbox label={t("saveView.everyoneCanSeeIt")} checked={shared} onChange={(e) => setShared(e.target.checked)} />
     </Dialog>
   );
 }
 
 export function ExplorerPage({ call, params }: { call: Call; params: URLSearchParams }) {
+  const msg = useT();
   const { can } = useAuth();
   const viewId = params.get("view");
   const view = useData<View>(call, viewId ? `/api/v1/views/${viewId}` : null, 0).data;
@@ -181,23 +186,23 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
   return (
     <>
       <PageHeader
-        title={view ? view.name : "Explorer"}
-        description={volume.data ? `${count(total)} lines in this range` : "Search every line kept, with LogsQL."}
+        title={view ? view.name : msg("explorerPage.explorer")}
+        description={volume.data ? msg("explorerPage.linesInThisRange", { count: count(total) }) : msg("explorerPage.searchEveryLineKeptWith")}
         actions={
           <>
             <Button icon={<Radio />} onClick={() => navigate(`/tail?${new URLSearchParams({ q: full })}`)}>
-              Live tail
+              {msg("explorerPage.liveTail")}
             </Button>
             {can("editor") && (
               <Button icon={<Bookmark />} onClick={() => setSaving(true)}>
-                Save view
+                {msg("explorerPage.saveView")}
               </Button>
             )}
           </>
         }
       >
         <div className="flex flex-wrap items-center gap-1.5">
-          <QueryBar value={draft} onChange={setDraft} onSubmit={submit} label="Log query" placeholder='service:checkout level:error "timeout"' className="min-w-0 grow" />
+          <QueryBar value={draft} onChange={setDraft} onSubmit={submit} label={msg("explorerPage.logQuery")} placeholder={msg("explorerPage.serviceCheckoutLevelErrorTimeout")} className="min-w-0 grow" />
           <TimeRangePicker
             value={range}
             onChange={(r) => {
@@ -219,8 +224,8 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
         />
       )}
       {saved && (
-        <Callout tone="success" title={`Saved as ${saved.name}`} onDismiss={() => setSaved(undefined)}>
-          Find it under <a href="/views">Saved views</a>, where a threshold can also call a webhook.
+        <Callout tone="success" title={msg("explorerPage.savedAs", { name: saved.name })} onDismiss={() => setSaved(undefined)}>
+          {msg("explorerPage.findItUnder")}{" "}<a href="/views">{msg("explorerPage.savedViews")}</a>{msg("explorerPage.whereAThresholdCanAlso")}
         </Callout>
       )}
       <FilterBar onClear={anyPicked ? () => setPicked({}) : undefined}>
@@ -236,14 +241,14 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
         ))}
       </FilterBar>
       {(search.error || volume.error) && (
-        <Callout tone="danger" title="The search did not run">
+        <Callout tone="danger" title={msg("explorerPage.theSearchDidNotRun")}>
           {search.error ?? volume.error}
         </Callout>
       )}
-      <Panel title="Lines over time" description={volume.data ? `By level, per ${volume.data.step}` : undefined}>
+      <Panel title={msg("explorerPage.linesOverTime")} description={volume.data ? msg("explorerPage.byLevelPer", { step: volume.data.step }) : undefined}>
         {volume.data && volume.data.times.length > 0 ? (
           <StackedBarChart
-            label="Lines over time by level"
+            label={msg("explorerPage.linesOverTimeByLevel")}
             categories={volume.data.times.map((t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }))}
             segments={[...levels].reverse().map((s) => ({ id: s.level, name: s.level, color: TONE_COLORS[LOG_LEVEL_META[toLogLevel(s.level)]?.tone ?? "neutral"] }))}
             values={volume.data.times.map((_, i) => [...levels].reverse().map((s) => s.values[i] ?? 0))}
@@ -251,24 +256,24 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
             xTicks={6}
           />
         ) : (
-          <p className="m-0 py-6 text-center text-sm text-fg-muted">{volume.data ? "No lines in this range." : "Counting…"}</p>
+          <p className="m-0 py-6 text-center text-sm text-fg-muted">{volume.data ? msg("explorerPage.noLinesInThisRange") : "Counting…"}</p>
         )}
       </Panel>
       <Panel
-        title="Lines"
-        description={search.data ? `${search.data.lines.length} newest first` : "Searching…"}
-        actions={search.data?.truncated && <StatusBadge tone="info">More match: narrow the query or the range</StatusBadge>}
+        title={msg("explorerPage.lines")}
+        description={search.data ? msg("explorerPage.newestFirst", { length: search.data.lines.length }) : "Searching…"}
+        actions={search.data?.truncated && <StatusBadge tone="info">{msg("explorerPage.moreMatchNarrowTheQuery")}</StatusBadge>}
         flush
       >
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
             <LogHeader />
-            <ul aria-label="Log lines" className="m-0 flex list-none flex-col p-0">
+            <ul aria-label={msg("explorerPage.logLines")} className="m-0 flex list-none flex-col p-0">
               {(search.data?.lines ?? []).map((l, i) => (
                 <LogRow key={`${l.time}-${i}`} id={String(i)} line={l} open={open === i} onToggle={() => setOpen((o) => (o === i ? null : i))} onFilter={addFilter} />
               ))}
             </ul>
-            {search.data?.lines.length === 0 && <p className="px-3 py-8 text-center text-sm text-fg-muted">No lines match. Widen the time range, or check the query.</p>}
+            {search.data?.lines.length === 0 && <p className="px-3 py-8 text-center text-sm text-fg-muted">{msg("explorerPage.noLinesMatchWidenThe")}</p>}
           </div>
         </div>
       </Panel>

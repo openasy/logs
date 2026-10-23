@@ -1,11 +1,13 @@
-import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column } from "@openasy/ui";
+import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column, useAgo } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
 import { Check, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { Agent, AgentSetup, Host, Source, Summary } from "./api.ts";
-import { ago, Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
+import { Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
+import { useT, type T } from "./i18n.ts";
 
 function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; agents: Agent[]; sources: Source[]; onAdded: () => void; onCancel: () => void }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
@@ -25,49 +27,50 @@ function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; age
     <Dialog
       open
       onOpenChange={(open) => !open && onCancel()}
-      title="Add a host"
-      description="The agent asks the host for its key first. Check the fingerprint on the host, then accept it; reading starts within a minute."
+      title={t("addHost.addAHost")}
+      description={t("addHost.theAgentAsksTheHost")}
       onSubmit={add}
       footer={
         <>
           <Button type="button" onClick={onCancel}>
-            Cancel
+            {t("addHost.cancel")}
           </Button>
           <Button type="submit" variant="primary" disabled={!name || !address}>
-            Add host
+            {t("addHost.addHost")}
           </Button>
         </>
       }
     >
-      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="web-1" hint="Its lines carry it as host" error={error} />
-      <TextField label="Address" mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
-      {agents.length > 1 && <SelectField label="Read by" value={agentId} onChange={(e) => setAgentId(e.target.value)} options={agents.map((a) => ({ value: a.id, label: a.name }))} />}
-      {sources.length > 1 && <SelectField label="Pipeline of" value={sourceId} onChange={(e) => setSourceId(e.target.value)} options={sources.map((s) => ({ value: s.id, label: s.name }))} />}
-      <Checkbox label="Also read container logs" description="Through the host's Docker. Access to the Docker socket is equivalent to root on that host." checked={containers} onChange={(e) => setContainers(e.target.checked)} />
+      <TextField label={t("addHost.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder="web-1" hint={t("addHost.itsLinesCarryItAs")} error={error} />
+      <TextField label={t("addHost.address")} mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
+      {agents.length > 1 && <SelectField label={t("addHost.readBy")} value={agentId} onChange={(e) => setAgentId(e.target.value)} options={agents.map((a) => ({ value: a.id, label: a.name }))} />}
+      {sources.length > 1 && <SelectField label={t("addHost.pipelineOf")} value={sourceId} onChange={(e) => setSourceId(e.target.value)} options={sources.map((s) => ({ value: s.id, label: s.name }))} />}
+      <Checkbox label={t("addHost.alsoReadContainerLogs")} description={t("addHost.throughTheHostSDocker")} checked={containers} onChange={(e) => setContainers(e.target.checked)} />
     </Dialog>
   );
 }
 
 /** A host that waits for an admin to compare its key with what the host itself prints. */
 function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () => void }) {
+  const t = useT();
   const { can } = useAuth();
   const key = host.pendingHostKeys[0];
   if (!key) return null;
   return (
-    <Callout tone={host.status === "host-key-changed" ? "danger" : "warning"} title={host.status === "host-key-changed" ? `${host.name} presents another key` : `Check the key of ${host.name}`}>
+    <Callout tone={host.status === "host-key-changed" ? "danger" : "warning"} title={host.status === "host-key-changed" ? t("keyCheck.presentsAnotherKey", { name: host.name }) : t("keyCheck.checkTheKeyOf", { name: host.name })}>
       <span className="flex flex-col gap-2">
-        <span>On the host, this must print the same fingerprint:</span>
-        <Code label="Command to run on the host">{`ssh-keygen -lf /etc/ssh/ssh_host_${key.type.includes("ed25519") ? "ed25519" : key.type.startsWith("ecdsa") ? "ecdsa" : "rsa"}_key.pub`}</Code>
+        <span>{t("keyCheck.onTheHostThisMust")}</span>
+        <Code label={t("keyCheck.commandToRunOnThe")}>{`ssh-keygen -lf /etc/ssh/ssh_host_${key.type.includes("ed25519") ? "ed25519" : key.type.startsWith("ecdsa") ? "ecdsa" : "rsa"}_key.pub`}</Code>
         <span className="logs-wrap font-mono text-xs">{key.fingerprint}</span>
         {host.fileHostKey && (
           <span>
-            The hosts file trusts <span className="logs-wrap font-mono text-xs">{host.fileHostKey}</span> for this host, and the host presents another key. Check the host; if the key is right, change hostKey in the file.
+            {t("keyCheck.theHostsFileTrusts")}{" "}<span className="logs-wrap font-mono text-xs">{host.fileHostKey}</span> {t("keyCheck.forThisHostAndThe")}
           </span>
         )}
         {can("admin") && !host.fileHostKey && (
           <span>
             <Button variant="primary" icon={<KeyRound />} onClick={() => void call(`/api/v1/hosts/${host.id}/host-key/accept`, { method: "POST", body: JSON.stringify({ fingerprint: key.fingerprint }) }).then(onDone)}>
-              It matches: accept
+              {t("keyCheck.itMatchesAccept")}
             </Button>
           </span>
         )}
@@ -77,6 +80,8 @@ function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () =
 }
 
 export function HostsPage({ call }: { call: Call }) {
+  const ago = useAgo();
+  const t = useT();
   const { can } = useAuth();
   const { data, reload } = useData<{ hosts: Host[] }>(call, "/api/v1/hosts", 10_000);
   const agents = useData<{ agents: Agent[] }>(call, "/api/v1/agents", 0).data?.agents ?? [];
@@ -87,30 +92,30 @@ export function HostsPage({ call }: { call: Call }) {
   const cols: Column<Host>[] = [
     {
       id: "name",
-      header: "Host",
+      header: t("hostsPage.host"),
       cell: (h) => (
         <span className="flex flex-wrap items-center gap-1.5">
           <a href={explore(`host:${quote(h.name)}`)}>{h.name}</a>
-          {h.origin === "file" && <Badge tone="neutral">From file</Badge>}
+          {h.origin === "file" && <Badge tone="neutral">{t("hostsPage.fromFile")}</Badge>}
         </span>
       ),
       sortValue: (h) => h.name,
     },
-    { id: "address", header: "Address", width: "150px", mono: true, cell: (h) => `${h.address}${h.port === 22 ? "" : `:${h.port}`}` },
-    { id: "status", header: "Status", width: "190px", cell: (h) => <span title={h.statusDetail ?? undefined}><Status status={h.status} /></span> },
-    { id: "lines", header: "Lines", width: "90px", align: "right", mono: true, cell: (h) => count(h.linesIn), sortValue: (h) => h.linesIn },
-    { id: "last", header: "Last read", width: "110px", cell: (h) => ago(h.lastSuccessAt) },
+    { id: "address", header: t("hostsPage.address"), width: "150px", mono: true, cell: (h) => `${h.address}${h.port === 22 ? "" : `:${h.port}`}` },
+    { id: "status", header: t("hostsPage.status"), width: "190px", cell: (h) => <span title={h.statusDetail ?? undefined}><Status status={h.status} /></span> },
+    { id: "lines", header: t("hostsPage.lines"), width: "90px", align: "right", mono: true, cell: (h) => count(h.linesIn), sortValue: (h) => h.linesIn },
+    { id: "last", header: t("hostsPage.lastRead"), width: "110px", cell: (h) => ago(h.lastSuccessAt) },
     {
       id: "what",
-      header: "Reads",
+      header: t("hostsPage.reads"),
       cell: (h) => (
         <span className="text-xs">
-          journald{h.containers ? ", containers" : ""} every {h.intervalSeconds} s
-          {h.unreadable.length > 0 && <span className="block text-warning-text">Not readable: {h.unreadable.join(", ")}</span>}
+          journald{h.containers ? t("hostsPage.containers") : ""} every {h.intervalSeconds} s
+          {h.unreadable.length > 0 && <span className="block text-warning-text">{t("hostsPage.notReadable")}{" "}{h.unreadable.join(", ")}</span>}
         </span>
       ),
     },
-    { id: "agent", header: "Agent", width: "120px", cell: (h) => h.agent.name },
+    { id: "agent", header: t("hostsPage.agent"), width: "120px", cell: (h) => h.agent.name },
     {
       id: "actions",
       header: "",
@@ -119,12 +124,12 @@ export function HostsPage({ call }: { call: Call }) {
         <span className="flex gap-1">
           {can("editor") && h.hostKeys.length > 0 && (
             <Button size="xs" variant="ghost" icon={<RefreshCw />} onClick={() => void call(`/api/v1/hosts/${h.id}/read`, { method: "POST" }).then(reload)}>
-              Read now
+              {t("hostsPage.readNow")}
             </Button>
           )}
           {can("admin") && h.origin === "ui" && (
-            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(`Stop reading ${h.name}? Its lines stay until retention removes them.`) && void call(`/api/v1/hosts/${h.id}`, { method: "DELETE" }).then(reload)}>
-              Remove
+            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("hostsPage.stopReadingItsLinesStay", { name: h.name })) && void call(`/api/v1/hosts/${h.id}`, { method: "DELETE" }).then(reload)}>
+              {t("hostsPage.remove")}
             </Button>
           )}
         </span>
@@ -134,29 +139,28 @@ export function HostsPage({ call }: { call: Call }) {
   return (
     <>
       <PageHeader
-        title="Hosts"
-        description="Servers logs-agent reads over SSH: the system journal, and container logs where switched on. Nothing is installed on them."
+        title={t("hostsPage.hosts")}
+        description={t("hostsPage.serversLogsAgentReadsOver")}
         actions={
           can("admin") &&
           agents.length > 0 && (
             <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-              Add host
+              {t("hostsPage.addHost")}
             </Button>
           )
         }
       />
       {agents.length === 0 && data && (
-        <EmptyState title="Add an agent first" action={<Button variant="primary" onClick={() => navigate("/agents")}>Add an agent</Button>}>
-          logs-agent is installed once per network and reads the hosts there. Hosts that already send their logs need no agent: add a source for them instead.
+        <EmptyState title={t("hostsPage.addAnAgentFirst")} action={<Button variant="primary" onClick={() => navigate("/agents")}>{t("hostsPage.addAnAgent")}</Button>}>
+          {t("hostsPage.logsAgentIsInstalledOnce")}
         </EmptyState>
       )}
       {file?.error && (
-        <Callout tone="danger" title="The hosts file is not applied">
-          {file.error} The hosts from its last good version stay until it is fixed ({file.path}).
-        </Callout>
+        <Callout tone="danger" title={t("hostsPage.theHostsFileIsNot")}>
+          {t("hostsPage.theHostsFromItsLast", { error: file.error, path: file.path })}</Callout>
       )}
       {!!file?.warnings.length && (
-        <Callout tone="warning" title="The hosts file has something to fix">
+        <Callout tone="warning" title={t("hostsPage.theHostsFileHasSomething")}>
           {file.warnings.join(" ")}
         </Callout>
       )}
@@ -177,22 +181,23 @@ export function HostsPage({ call }: { call: Call }) {
       ))}
       {agents.length > 0 && (
         <Panel flush>
-          <List label="Hosts" rows={data?.hosts} columns={cols} empty="No hosts yet. Prepare one with the commands under Agents, then add it here." getRowId={(h) => h.id} />
+          <List label={t("hostsPage.hosts")} rows={data?.hosts} columns={cols} empty={t("hostsPage.noHostsYetPrepareOne")} getRowId={(h) => h.id} />
         </Panel>
       )}
     </>
   );
 }
 
-const AGENT_STATUS: Record<string, { tone: "success" | "warning" | "danger" | "info"; label: string }> = {
-  online: { tone: "success", label: "Online" },
-  offline: { tone: "danger", label: "Offline" },
-  "waiting-to-enrol": { tone: "info", label: "Waiting to enrol" },
-  "version-mismatch": { tone: "danger", label: "Other version" },
-};
+const AGENT_STATUS = (t: T): Record<string, { tone: "success" | "warning" | "danger" | "info"; label: string }> => ({
+  online: { tone: "success", label: t("agentStatus.online") },
+  offline: { tone: "danger", label: t("agentStatus.offline") },
+  "waiting-to-enrol": { tone: "info", label: t("agentStatus.waitingToEnrol") },
+  "version-mismatch": { tone: "danger", label: t("agentStatus.otherVersion") },
+});
 
 /** How to start logs-agent with its one-time token, next to Logs or in another network. */
 function EnrollCommand({ token, expiresAt, version, onDone }: { token: string; expiresAt: string; version?: string; onDone: () => void }) {
+  const t = useT();
   return (
     <Dialog
       open
@@ -200,19 +205,19 @@ function EnrollCommand({ token, expiresAt, version, onDone }: { token: string; e
       size="lg"
       icon={<Check aria-hidden className="size-4" />}
       iconTone="success"
-      title="Start the agent with this one-time token"
-      description={`It works once, until ${new Date(expiresAt).toLocaleString()}, and is not shown again.`}
+      title={t("enrollCommand.startTheAgentWithThis")}
+      description={t("enrollCommand.itWorksOnceUntilAnd", { value: new Date(expiresAt).toLocaleString() })}
       footer={
         <Button variant="primary" onClick={onDone}>
-          Done
+          {t("enrollCommand.done")}
         </Button>
       }
     >
       <span className="flex flex-col gap-2">
-        <span>With the compose file of Logs:</span>
-        <Code label="Start the agent next to Logs">{`LOGS_ENROLL_TOKEN=${token} docker compose up -d logs-agent`}</Code>
-        <span>In another network, on any server that reaches the hosts there and reaches Logs:</span>
-        <Code label="Start the agent in another network">
+        <span>{t("enrollCommand.withTheComposeFileOf")}</span>
+        <Code label={t("enrollCommand.startTheAgentNextTo")}>{`LOGS_ENROLL_TOKEN=${token} docker compose up -d logs-agent`}</Code>
+        <span>{t("enrollCommand.inAnotherNetworkOnAny")}</span>
+        <Code label={t("enrollCommand.startTheAgentInAnother")}>
           {`openssl rand -hex 32 > openasy-agent-kek
 docker run -d --name logs-agent --restart unless-stopped --read-only --tmpfs /tmp \\
   --cap-drop ALL --security-opt no-new-privileges \\
@@ -221,14 +226,16 @@ docker run -d --name logs-agent --restart unless-stopped --read-only --tmpfs /tm
   ghcr.io/openasy/logs-agent:${version ?? "<the version of Logs>"}`}
         </Code>
       </span>
-      <Callout tone="warning" title="Closing this dialog hides the token">
-        If it is lost, enrol the agent again from its row.
+      <Callout tone="warning" title={t("enrollCommand.closingThisDialogHidesThe")}>
+        {t("enrollCommand.ifItIsLostEnrol")}
       </Callout>
     </Dialog>
   );
 }
 
 export function AgentsPage({ call }: { call: Call }) {
+  const ago = useAgo();
+  const t = useT();
   const { can } = useAuth();
   const { data, reload } = useData<{ agents: Agent[] }>(call, "/api/v1/agents", 10_000);
   // The agent must be the same version as Logs (ADR 0019).
@@ -254,12 +261,12 @@ export function AgentsPage({ call }: { call: Call }) {
     }
   };
   const cols: Column<Agent>[] = [
-    { id: "name", header: "Agent", cell: (a) => a.name, sortValue: (a) => a.name },
-    { id: "status", header: "Status", width: "150px", cell: (a) => <span title={a.lastError ?? undefined}><Badge tone={AGENT_STATUS[a.status]?.tone ?? "neutral"}>{AGENT_STATUS[a.status]?.label ?? a.status}</Badge></span> },
-    { id: "hosts", header: "Hosts", width: "80px", align: "right", cell: (a) => a.hosts },
-    { id: "version", header: "Version", width: "90px", mono: true, cell: (a) => a.version ?? "–" },
-    { id: "ca", header: "CA fingerprint", cell: (a) => <span className="logs-wrap font-mono text-xs">{a.caFingerprint ?? "–"}</span> },
-    { id: "seen", header: "Last seen", width: "110px", cell: (a) => ago(a.lastSeenAt) },
+    { id: "name", header: t("agentsPage.agent"), cell: (a) => a.name, sortValue: (a) => a.name },
+    { id: "status", header: t("agentsPage.status"), width: "150px", cell: (a) => <span title={a.lastError ?? undefined}><Badge tone={AGENT_STATUS(t)[a.status]?.tone ?? "neutral"}>{AGENT_STATUS(t)[a.status]?.label ?? a.status}</Badge></span> },
+    { id: "hosts", header: t("agentsPage.hosts"), width: "80px", align: "right", cell: (a) => a.hosts },
+    { id: "version", header: t("agentsPage.version"), width: "90px", mono: true, cell: (a) => a.version ?? "–" },
+    { id: "ca", header: t("agentsPage.caFingerprint"), cell: (a) => <span className="logs-wrap font-mono text-xs">{a.caFingerprint ?? "–"}</span> },
+    { id: "seen", header: t("agentsPage.lastSeen"), width: "110px", cell: (a) => ago(a.lastSeenAt) },
     {
       id: "actions",
       header: "",
@@ -267,12 +274,12 @@ export function AgentsPage({ call }: { call: Call }) {
       cell: (a) =>
         can("admin") && (
           <span className="flex gap-1">
-            <Button size="xs" variant="ghost" icon={<RefreshCw />} onClick={() => window.confirm(`Enrol ${a.name} again? Its secret stops working; if its CA changes, the hosts it reads must trust the new one.`) && void call<{ enrollToken: string; enrollExpiresAt: string }>(`/api/v1/agents/${a.id}/enroll-token`, { method: "POST" }).then((r) => (setCreated(r), reload()))}>
-              Enrol again
+            <Button size="xs" variant="ghost" icon={<RefreshCw />} onClick={() => window.confirm(t("agentsPage.enrolAgainItsSecretStops", { name: a.name })) && void call<{ enrollToken: string; enrollExpiresAt: string }>(`/api/v1/agents/${a.id}/enroll-token`, { method: "POST" }).then((r) => (setCreated(r), reload()))}>
+              {t("agentsPage.enrolAgain")}
             </Button>
             {a.hosts === 0 && (
-              <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(`Remove ${a.name}?`) && void call(`/api/v1/agents/${a.id}`, { method: "DELETE" }).then(reload)}>
-                Remove
+              <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("agentsPage.remove", { name: a.name })) && void call(`/api/v1/agents/${a.id}`, { method: "DELETE" }).then(reload)}>
+                {t("agentsPage.remove2")}
               </Button>
             )}
           </span>
@@ -282,12 +289,12 @@ export function AgentsPage({ call }: { call: Call }) {
   return (
     <>
       <PageHeader
-        title="Agents"
-        description="logs-agent is installed once, next to Logs or in another network, and reads the hosts there over SSH with 5-minute certificates. It keeps its SSH certificate authority; Logs only says which host to read and from where."
+        title={t("agentsPage.agents")}
+        description={t("agentsPage.logsAgentIsInstalledOnce")}
         actions={
           can("admin") && (
             <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-              Add agent
+              {t("agentsPage.addAgent")}
             </Button>
           )
         }
@@ -296,37 +303,37 @@ export function AgentsPage({ call }: { call: Call }) {
         open={adding}
         onOpenChange={(open) => !open && close()}
         size="sm"
-        title="Add an agent"
-        description="Name it after where it runs. You get a one-time token to start it with."
+        title={t("agentsPage.addAnAgent")}
+        description={t("agentsPage.nameItAfterWhereIt")}
         onSubmit={add}
         footer={
           <>
             <Button type="button" onClick={close}>
-              Cancel
+              {t("agentsPage.cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={!name}>
-              Add agent
+              {t("agentsPage.addAgent")}
             </Button>
           </>
         }
       >
-        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="dc-frankfurt" error={error} />
+        <TextField label={t("agentsPage.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder="dc-frankfurt" error={error} />
       </Dialog>
       {created && <EnrollCommand token={created.enrollToken} expiresAt={created.enrollExpiresAt} version={version} onDone={() => setCreated(undefined)} />}
       <Panel flush>
-        <List label="Agents" rows={data?.agents} columns={cols} empty="No agents yet" getRowId={(a) => a.id} />
+        <List label={t("agentsPage.agents")} rows={data?.agents} columns={cols} empty={t("agentsPage.noAgentsYet")} getRowId={(a) => a.id} />
       </Panel>
       {setup && (
         <Panel
-          title="Prepare a host"
-          description={`Run as root on each host ${setup.agent.name} reads. It creates the openasy account, trusts the agent's CA for that account only, and lets it read the system journal. Nothing else is installed.`}
-          actions={enrolled.length > 1 && <SelectField label="For hosts read by" value={chosen} onChange={(e) => setSetupFor(e.target.value)} options={enrolled.map((a) => ({ value: a.id, label: a.name }))} />}
+          title={t("agentsPage.prepareAHost")}
+          description={t("agentsPage.runAsRootOnEach", { name: setup.agent.name })}
+          actions={enrolled.length > 1 && <SelectField label={t("agentsPage.forHostsReadBy")} value={chosen} onChange={(e) => setSetupFor(e.target.value)} options={enrolled.map((a) => ({ value: a.id, label: a.name }))} />}
         >
           <div className="flex flex-col gap-3">
-            <Code label="Commands to prepare a host">{setup.hostSetup}</Code>
-            <span className="text-sm text-fg-muted">Or, where sshd_config cannot change, one fixed key that can open no TTY and forward nothing:</span>
+            <Code label={t("agentsPage.commandsToPrepareAHost")}>{setup.hostSetup}</Code>
+            <span className="text-sm text-fg-muted">{t("agentsPage.orWhereSshdConfigCannot")}</span>
             <Code label="authorized_keys line">{`# ~openasy/.ssh/authorized_keys\n${setup.authorizedKey}`}</Code>
-            <span className="logs-wrap text-xs text-fg-muted">CA fingerprint {setup.caFingerprint}</span>
+            <span className="logs-wrap text-xs text-fg-muted">{t("agentsPage.caFingerprint2", { caFingerprint: setup.caFingerprint })}</span>
           </div>
         </Panel>
       )}
