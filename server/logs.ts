@@ -615,7 +615,16 @@ export function createLogs(
         : undefined;
     if (b.ok === true && keyList && b.entries === undefined) {
       // The hosts file vouches for a key with its fingerprint (ADR 0052): that key is pinned without an admin.
-      const vouched = h.file_host_key ? keyList.find((k) => fingerprint(k) === h.file_host_key) : undefined;
+      const vouched = h.file_host_key && h.file_host_key !== "first" ? keyList.find((k) => fingerprint(k) === h.file_host_key) : undefined;
+      // hostKey: first trusts the keys the host presents the first time, and none other after (ssh's accept-new).
+      const firstSeen = h.file_host_key === "first" && (JSON.parse(h.host_keys) as string[]).length === 0;
+      if (firstSeen) {
+        db.prepare(
+          "UPDATE hosts SET key_requested = 0, host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1 WHERE id = ?",
+        ).run(JSON.stringify(keyList), h.id);
+        log("info", "host key trusted on first use, as the hosts file says", { host: h.name, fingerprints: keyList.map(fingerprint) });
+        return { status: "accepted" };
+      }
       if (vouched) {
         db.prepare(
           "UPDATE hosts SET key_requested = 0, host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1 WHERE id = ?",
@@ -630,7 +639,7 @@ export function createLogs(
         same ? (h.status === "host-key-changed" ? "pending" : h.status) : pinned.length ? "host-key-changed" : "host-key-pending",
         same
           ? h.status_detail
-          : h.file_host_key
+          : h.file_host_key && h.file_host_key !== "first"
             ? `The host presents a key that is not ${h.file_host_key} from the hosts file. Check the host, then fix hostKey in the file.`
             : pinned.length
               ? "The host presents a different key. Check it on the host, then accept it."
@@ -688,7 +697,8 @@ export function createLogs(
       agent: { id: agent.id, name: agent.name },
       source: { id: source.id, name: source.name },
       origin: h.origin,
-      fileHostKey: h.file_host_key,
+      // A fingerprint the file trusts; first is not one, and its key is accepted like any other once it changes.
+      fileHostKey: h.file_host_key === "first" ? null : h.file_host_key,
       address: h.address,
       port: h.port,
       user: h.ssh_user,
@@ -834,7 +844,7 @@ export function createLogs(
 
   function acceptHostKey(id: string, fp: unknown) {
     const h = requireHost(id);
-    if (h.file_host_key) fromFile(h, "Its key is the one hostKey names there; change hostKey to trust another.");
+    if (h.file_host_key && h.file_host_key !== "first") fromFile(h, "Its key is the one hostKey names there; change hostKey to trust another.");
     const key = (JSON.parse(h.pending_host_keys) as string[]).find((k) => fingerprint(k) === fp);
     if (typeof fp !== "string" || !key) throw bad("fingerprint must be one of the pending host keys, as SHA256:...");
     db.prepare(
@@ -893,7 +903,8 @@ export function createLogs(
       }
       const pinned = JSON.parse(h.host_keys) as string[];
       const moved = e.address !== h.address || e.port !== h.port || agentId !== h.agent_id;
-      const vouchesOther = !!e.hostKey && e.hostKey !== h.file_host_key && pinned.length > 0 && !pinned.some((k) => fingerprint(k) === e.hostKey);
+      const vouchesOther =
+        !!e.hostKey && e.hostKey !== "first" && e.hostKey !== h.file_host_key && pinned.length > 0 && !pinned.some((k) => fingerprint(k) === e.hostKey);
       db.prepare(
         "UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, key_file = ?, containers = ?, file_host_key = ? WHERE id = ?",
       ).run(agentId, e.address, e.port, e.user, e.auth, e.keyFile, e.containers ? 1 : 0, e.hostKey, h.id);

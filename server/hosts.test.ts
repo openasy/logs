@@ -72,6 +72,24 @@ describe("hosts from the file", () => {
     expect(refused.status).toBe(409);
   });
 
+  it("trust the first key when the file says first, and wait for an admin when it changes", async () => {
+    app.logs.syncFile(parseHosts(DIRECT.replace("10.0.0.2, agent: dc1 }", "10.0.0.2, agent: dc1, hostKey: first }")));
+    await agent.round();
+    // bastion presents OTHER_KEY: the first key it shows is trusted without an admin.
+    expect(await host("bastion")).toMatchObject({ status: "pending", hostKeys: [{ fingerprint: fingerprint(OTHER_KEY) }], fileHostKey: null });
+    agent.hosts.set("10.0.0.2", { key: HOST_KEY, lines: [] });
+    const bastion = await host("bastion");
+    await app.admin(`/api/v1/hosts/${bastion.id}/host-key`, { method: "POST" });
+    await agent.round();
+    // Another key later is not trusted by itself; an admin may accept it, since the file names none.
+    expect(await host("bastion")).toMatchObject({ status: "host-key-changed", pendingHostKeys: [{ fingerprint: fingerprint(HOST_KEY) }] });
+    const accepted = await app.admin(`/api/v1/hosts/${bastion.id}/host-key/accept`, {
+      method: "POST",
+      body: JSON.stringify({ fingerprint: fingerprint(HOST_KEY) }),
+    });
+    expect(accepted.status).toBe(200);
+  });
+
   it("are changed in the file only, and a name taken here is left alone", async () => {
     const web = await host("web-1");
     expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "PATCH", body: JSON.stringify({ port: 2200 }) })).status).toBe(409);

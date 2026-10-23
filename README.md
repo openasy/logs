@@ -52,7 +52,7 @@ Values that look like passwords, tokens or keys are masked before they leave the
 Hosts can also come from the install's hosts file, the same file Infrastructure reads (ADR 0052): mount it and set
 `OPENASY_HOSTS`. Logs reads `name`, `address`, `port`, `user`, `auth`, `containers`, `agent` and `hostKey` (see the
 [infra README](https://github.com/openasy/infra#from-a-file)); a host that presents the key `hostKey` names is
-trusted without an admin. Logs reaches hosts directly, so an entry with `jump` is left out with a warning. Hosts
+trusted without an admin, and `hostKey: first` trusts the first key a host presents. Logs reaches hosts directly, so an entry with `jump` is left out with a warning. Hosts
 from the file show **From file** and are changed there; the API answers 409 to a change or delete. A file with a
 mistake is not applied at all, and the Hosts page and the log say what to fix.
 

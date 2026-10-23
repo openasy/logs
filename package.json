@@ -1,6 +1,6 @@
 {
   "name": "@openasy/logs",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "OpenAsy Logs: search what happened on every host and service. Logs are sent to it or read over SSH; nothing is installed on hosts.",
   "license": "AGPL-3.0-only",
@@ -26,12 +26,12 @@
     "npm": ">=11"
   },
   "dependencies": {
-    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.8.0/openasy-auth-0.8.0.tgz",
+    "@openasy/auth": "https://github.com/openasy/auth/releases/download/v0.9.0/openasy-auth-0.9.0.tgz",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@openasy/code-style": "https://github.com/openasy/code-style/releases/download/v0.1.2/openasy-code-style-0.1.2.tgz",
-    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.7.0/openasy-ui-0.7.0.tgz",
+    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.8.0/openasy-ui-0.8.0.tgz",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
