@@ -27,9 +27,9 @@ services:
       # The address people open Logs at; with a TLS proxy in front, its https:// URL.
       LOGS_PUBLIC_URL: ${LOGS_PUBLIC_URL:-http://localhost:8080}
       # Sign in with your identity provider (OIDC), see the README:
-      # LOGS_OIDC_ISSUER: https://login.example.com
-      # LOGS_OIDC_CLIENT_ID: logs
-      # LOGS_OIDC_CLIENT_SECRET: ${LOGS_OIDC_CLIENT_SECRET}
+      # OPENASY_OIDC_ISSUER: https://login.example.com
+      # OPENASY_OIDC_CLIENT_ID: logs
+      # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
 
   logs-agent:
     image: ghcr.io/openasy/logs-agent:0.1.0   # always the same version as logs

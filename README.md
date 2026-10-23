@@ -64,7 +64,7 @@ Values that look like passwords, tokens or keys are masked before they leave the
 | `LOGS_SYSLOG_TLS_CERT_FILE`, `LOGS_SYSLOG_TLS_KEY_FILE` | | Your own Syslog certificate and key |
 | `LOGS_METRICS_PORT` | | Serve `/metrics` on this port only (ADR 0026) |
 | `LOGS_HEADLESS` | `false` | `true` serves only the API |
-| `LOGS_PASSWORD_SIGN_IN`, `LOGS_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)). Owners can also add identity providers under Settings, Sign-in |
+| `LOGS_PASSWORD_SIGN_IN`, `OPENASY_OIDC_*` | | Sign-in, as in every OpenAsy product ([@openasy/auth](https://github.com/openasy/auth)). Owners can also add identity providers under Settings, Sign-in |
 
 Retention (30 days by default) and the disk limit are set under Settings; when the disk is nearly full the oldest days
 go first. Logs holds personal data and sometimes secrets: anyone with the viewer role reads every log it keeps.
