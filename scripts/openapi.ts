@@ -337,7 +337,7 @@ const spec = {
   openapi: "3.1.1",
   info: {
     title: "OpenAsy Logs API",
-    version: "0.2.0",
+    version: "0.3.0",
     summary: "Search what happened on every host and service.",
     description:
       "Every screen of Logs uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only (ADR 0024). Errors use Problem Details (RFC 9457).\n\nLogs are stored in VictoriaLogs inside the product and searched with [LogsQL](https://docs.victoriametrics.com/victorialogs/logsql/) as it is (ADR 0035). They are sent with a source's ingest token, by syslog, or read over SSH by logs-agent. Each operation names the role it needs (`x-openasy-role`). Sign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",

@@ -98,6 +98,7 @@ interface HostRow {
   created_at: string;
   origin: "ui" | "file";
   file_host_key: string | null;
+  key_file: string | null;
 }
 
 interface ViewRow {
@@ -591,6 +592,7 @@ export function createLogs(
             user: h.ssh_user,
             hostKeys: JSON.parse(h.host_keys) as string[],
             auth: h.auth,
+            ...(h.auth === "key" && h.key_file && { keyFile: h.key_file }),
             containers: h.containers === 1,
           },
           cursor: { journal: h.journal_cursor, docker: h.docker_since },
@@ -885,23 +887,16 @@ export function createLogs(
       }
       if (!h) {
         db.prepare(
-          "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at, origin, file_host_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 60, ?, 'file', ?)",
-        ).run(randomUUID(), e.name, agentId, defaultSshSource(), e.address, e.port, e.user, e.auth, e.containers ? 1 : 0, iso(), e.hostKey);
+          "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, key_file, containers, interval_seconds, created_at, origin, file_host_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 60, ?, 'file', ?)",
+        ).run(randomUUID(), e.name, agentId, defaultSshSource(), e.address, e.port, e.user, e.auth, e.keyFile, e.containers ? 1 : 0, iso(), e.hostKey);
         continue;
       }
       const pinned = JSON.parse(h.host_keys) as string[];
       const moved = e.address !== h.address || e.port !== h.port || agentId !== h.agent_id;
       const vouchesOther = !!e.hostKey && e.hostKey !== h.file_host_key && pinned.length > 0 && !pinned.some((k) => fingerprint(k) === e.hostKey);
-      db.prepare("UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, file_host_key = ? WHERE id = ?").run(
-        agentId,
-        e.address,
-        e.port,
-        e.user,
-        e.auth,
-        e.containers ? 1 : 0,
-        e.hostKey,
-        h.id,
-      );
+      db.prepare(
+        "UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, key_file = ?, containers = ?, file_host_key = ? WHERE id = ?",
+      ).run(agentId, e.address, e.port, e.user, e.auth, e.keyFile, e.containers ? 1 : 0, e.hostKey, h.id);
       if (moved || vouchesOther)
         db.prepare(
           "UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?",

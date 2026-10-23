@@ -45,6 +45,11 @@ describe("hosts from the file", () => {
       "bastion file dc1 22 openasy",
       "db-1 file dc1 2222 reader",
     ]);
+    // The key file is named to the agent, which reads it from its own folder; the other host uses a certificate.
+    const { jobs } = await agent.round();
+    expect(
+      jobs.map((j) => `${j.target.address} ${(j.target as Record<string, unknown>).auth} ${(j.target as Record<string, unknown>).keyFile ?? "-"}`).sort(),
+    ).toEqual(["10.0.0.2 certificate -", "10.0.0.6 key db-1.key"]);
   });
 
   it("trust the key the file names, and only that one", async () => {

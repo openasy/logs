@@ -100,6 +100,9 @@ const MIGRATIONS = [
    -- the fingerprint the file gives: a host that presents that key is trusted without an admin comparing it.
    ALTER TABLE hosts ADD COLUMN origin TEXT NOT NULL DEFAULT 'ui' CHECK (origin IN ('ui', 'file'));
    ALTER TABLE hosts ADD COLUMN file_host_key TEXT`,
+  `-- A host from the file with auth key may name a private key in the agent's key folder. Only the name is kept: the
+   -- agent reads the file itself, so Logs never holds a key that opens a host (ADR 0035).
+   ALTER TABLE hosts ADD COLUMN key_file TEXT`,
 ];
 
 /** Opens the product's single SQLite file in WAL mode (ADR 0011) and migrates it forward. */
