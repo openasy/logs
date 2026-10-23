@@ -35,11 +35,29 @@ export function syslogTls(db: DatabaseSync, keyring: Keyring, files: { cert?: st
   }
   const dir = mkdtempSync(join(tmpdir(), "openasy-tls-"));
   try {
-    execFileSync("openssl", [
-      "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-days", "3650",
-      "-subj", `/CN=${hostname}/O=OpenAsy Logs`, "-addext", `subjectAltName=DNS:${hostname}`,
-      "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem"),
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+    execFileSync(
+      "openssl",
+      [
+        "req",
+        "-x509",
+        "-newkey",
+        "ec",
+        "-pkeyopt",
+        "ec_paramgen_curve:prime256v1",
+        "-nodes",
+        "-days",
+        "3650",
+        "-subj",
+        `/CN=${hostname}/O=OpenAsy Logs`,
+        "-addext",
+        `subjectAltName=DNS:${hostname}`,
+        "-keyout",
+        join(dir, "key.pem"),
+        "-out",
+        join(dir, "cert.pem"),
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
     const cert = readFileSync(join(dir, "cert.pem"), "utf8");
     const key = readFileSync(join(dir, "key.pem"), "utf8");
     db.prepare("INSERT INTO settings (key, value) VALUES ('syslogTls', ?)").run(JSON.stringify({ cert, key: keyring.seal(key) }));

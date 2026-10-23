@@ -71,7 +71,8 @@ function send(res: ServerResponse, status: number, body: string | Buffer, type =
   res.writeHead(status, { ...SECURITY_HEADERS, ...headers, "content-type": type, "content-length": Buffer.byteLength(body) });
   res.end(body);
 }
-const json = (res: ServerResponse, status: number, data: unknown, headers: Record<string, string> = {}) => send(res, status, JSON.stringify(data), "application/json", headers);
+const json = (res: ServerResponse, status: number, data: unknown, headers: Record<string, string> = {}) =>
+  send(res, status, JSON.stringify(data), "application/json", headers);
 
 const TITLES: Record<ProblemCode, string> = {
   "invalid-json": "Invalid JSON",
@@ -106,7 +107,8 @@ async function serveFile(res: ServerResponse, dir: string, relative: string): Pr
 /** Reads a body, decompressing gzip and deflate (shippers send both), up to limit bytes after decompression. */
 async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer> {
   const encoding = req.headers["content-encoding"];
-  if (encoding && encoding !== "gzip" && encoding !== "deflate" && encoding !== "identity") throw new LogsError(415, "invalid-body", "Content-Encoding must be gzip, deflate or absent.");
+  if (encoding && encoding !== "gzip" && encoding !== "deflate" && encoding !== "identity")
+    throw new LogsError(415, "invalid-body", "Content-Encoding must be gzip, deflate or absent.");
   const source = encoding === "gzip" ? req.pipe(createGunzip()) : encoding === "deflate" ? req.pipe(createInflate()) : req;
   const chunks: Buffer[] = [];
   let size = 0;
@@ -125,7 +127,8 @@ async function readRaw(req: IncomingMessage, limit: number): Promise<Buffer> {
 
 async function readJson(req: IncomingMessage, limit = 64 * 1024): Promise<Record<string, unknown>> {
   const raw = await readRaw(req, limit).catch((err: unknown) => {
-    if (err instanceof LogsError && err.status === 413) throw new LogsError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
+    if (err instanceof LogsError && err.status === 413)
+      throw new LogsError(400, "invalid-json", `The body must be JSON, at most ${Math.round(limit / 1024)} KiB.`);
     throw err;
   });
   try {
@@ -178,19 +181,47 @@ function cursorOf(url: URL) {
   if (!/^\d+$/.test(v)) throw new LogsError(422, "invalid-body", "cursor is the nextCursor of the previous page.");
   return Number(v);
 }
-const actorOf = (p: Principal): Actor => (p.kind === "session" ? { id: p.user.id, name: p.user.name } : { id: `token:${p.tokenId}`, name: `API token ${p.name}` });
-const searchParams = (url: URL) => ({ query: url.searchParams.get("query") ?? undefined, start: url.searchParams.get("start") ?? undefined, end: url.searchParams.get("end") ?? undefined });
+const actorOf = (p: Principal): Actor =>
+  p.kind === "session" ? { id: p.user.id, name: p.user.name } : { id: `token:${p.tokenId}`, name: `API token ${p.name}` };
+const searchParams = (url: URL) => ({
+  query: url.searchParams.get("query") ?? undefined,
+  start: url.searchParams.get("start") ?? undefined,
+  end: url.searchParams.get("end") ?? undefined,
+});
 
 /** What /metrics shows, gathered when it is asked for. */
 export async function collectGauges(o: Pick<AppOptions, "logs" | "vlogs" | "syslog" | "victoriaLogs">): Promise<Gauges> {
   const s = await o.logs.summary();
-  return { sources: s.sources, hosts: s.hosts, storedBytes: s.storedBytes, alertsFiring: s.alertsFiring, victoriaLogsUp: await o.vlogs.healthy(), victoriaLogsRestarts: o.victoriaLogs?.().restarts ?? 0, syslog: o.syslog?.()?.stats ?? null };
+  return {
+    sources: s.sources,
+    hosts: s.hosts,
+    storedBytes: s.storedBytes,
+    alertsFiring: s.alertsFiring,
+    victoriaLogsUp: await o.vlogs.healthy(),
+    victoriaLogsRestarts: o.victoriaLogs?.().restarts ?? 0,
+    syslog: o.syslog?.()?.stats ?? null,
+  };
 }
 
 /** Answers Elasticsearch clients the way they expect, so Beats, Fluent Bit and Vector send without changes. */
 const ES_HEADERS = { "x-elastic-product": "Elasticsearch" };
 
-export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, openapi, serveMetrics = true, syslog, victoriaLogs, onSettings, products = [], hostsFile }: AppOptions) {
+export function createApp({
+  db,
+  logs,
+  vlogs,
+  version,
+  auth,
+  webDir,
+  docsDir,
+  openapi,
+  serveMetrics = true,
+  syslog,
+  victoriaLogs,
+  onSettings,
+  products = [],
+  hostsFile,
+}: AppOptions) {
   const spec = openapi && JSON.stringify({ ...mergeOpenApi(openapi), info: { ...(openapi.info as object), version } });
   const created = (res: ServerResponse, data: unknown) => (json(res, 201, data), undefined);
   const noContent = (res: ServerResponse) => {
@@ -248,8 +279,18 @@ export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, ope
     { method: "GET", path: "/api/v1/views", auth: "viewer", handle: ({ actor }) => ({ views: logs.listViews(actor) }) },
     { method: "POST", path: "/api/v1/views", auth: "editor", handle: async ({ res, body, actor }) => created(res, logs.createView(actor, await body())) },
     { method: "GET", path: "/api/v1/views/:id", auth: "viewer", handle: ({ params, actor }) => logs.view(actor, params[0]!) },
-    { method: "PATCH", path: "/api/v1/views/:id", auth: "editor", handle: async ({ params, body, actor, principal }) => logs.updateView(actor, principal.role === "admin", params[0]!, await body()) },
-    { method: "DELETE", path: "/api/v1/views/:id", auth: "editor", handle: ({ res, params, actor, principal }) => (logs.deleteView(actor, principal.role === "admin", params[0]!), noContent(res)) },
+    {
+      method: "PATCH",
+      path: "/api/v1/views/:id",
+      auth: "editor",
+      handle: async ({ params, body, actor, principal }) => logs.updateView(actor, principal.role === "admin", params[0]!, await body()),
+    },
+    {
+      method: "DELETE",
+      path: "/api/v1/views/:id",
+      auth: "editor",
+      handle: ({ res, params, actor, principal }) => (logs.deleteView(actor, principal.role === "admin", params[0]!), noContent(res)),
+    },
 
     // Sources and their pipelines.
     { method: "GET", path: "/api/v1/sources", auth: "viewer", handle: () => ({ sources: logs.listSources() }) },
@@ -304,23 +345,53 @@ export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, ope
         return undefined;
       },
     },
-    { method: "GET", path: "/api/v1/ingest/elasticsearch", auth: "source", handle: ({ res }) => (json(res, 200, { name: "openasy-logs", cluster_name: "openasy", version: { number: "8.17.0", build_flavor: "default" }, tagline: "OpenAsy Logs takes the bulk API only." }, ES_HEADERS), undefined) },
-    { method: "GET", path: "/api/v1/ingest/elasticsearch/_license", auth: "source", handle: ({ res }) => (json(res, 200, { license: { status: "active", type: "basic" } }, ES_HEADERS), undefined) },
-    ...["/api/v1/ingest/elasticsearch/_bulk", "/api/v1/ingest/elasticsearch/:index/_bulk"].map(
-      (path): Route => ({
-        method: "POST",
-        path,
-        auth: "source",
-        bodyLimit: INGEST_LIMIT,
-        handle: async ({ res, raw, source }) => {
-          const started = Date.now();
-          const { entries, actions } = parseBulk((await raw()).toString("utf8"));
-          await take(source, "elasticsearch", entries);
-          json(res, 200, { took: Date.now() - started, errors: false, items: actions.map((a) => ({ [a]: { status: a === "create" || a === "index" ? 201 : 200, result: "created" } })) }, ES_HEADERS);
-          return undefined;
-        },
-      }),
-    ),
+    {
+      method: "GET",
+      path: "/api/v1/ingest/elasticsearch",
+      auth: "source",
+      handle: ({ res }) => (
+        json(
+          res,
+          200,
+          {
+            name: "openasy-logs",
+            cluster_name: "openasy",
+            version: { number: "8.17.0", build_flavor: "default" },
+            tagline: "OpenAsy Logs takes the bulk API only.",
+          },
+          ES_HEADERS,
+        ),
+        undefined
+      ),
+    },
+    {
+      method: "GET",
+      path: "/api/v1/ingest/elasticsearch/_license",
+      auth: "source",
+      handle: ({ res }) => (json(res, 200, { license: { status: "active", type: "basic" } }, ES_HEADERS), undefined),
+    },
+    ...["/api/v1/ingest/elasticsearch/_bulk", "/api/v1/ingest/elasticsearch/:index/_bulk"].map((path): Route => ({
+      method: "POST",
+      path,
+      auth: "source",
+      bodyLimit: INGEST_LIMIT,
+      handle: async ({ res, raw, source }) => {
+        const started = Date.now();
+        const { entries, actions } = parseBulk((await raw()).toString("utf8"));
+        await take(source, "elasticsearch", entries);
+        json(
+          res,
+          200,
+          {
+            took: Date.now() - started,
+            errors: false,
+            items: actions.map((a) => ({ [a]: { status: a === "create" || a === "index" ? 201 : 200, result: "created" } })),
+          },
+          ES_HEADERS,
+        );
+        return undefined;
+      },
+    })),
 
     // logs-agent instances (ADR 0018, 0031): added here, enrolled with a one-time token.
     { method: "GET", path: "/api/v1/agents", auth: "viewer", handle: () => ({ agents: logs.listAgents() }) },
@@ -353,7 +424,12 @@ export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, ope
     { method: "DELETE", path: "/api/v1/hosts/:id", auth: "admin", handle: ({ res, params }) => (logs.deleteHost(params[0]!), noContent(res)) },
     { method: "POST", path: "/api/v1/hosts/:id/read", auth: "editor", handle: ({ res, params }) => (logs.requestRead(params[0]!), accepted(res)) },
     { method: "POST", path: "/api/v1/hosts/:id/host-key", auth: "admin", handle: ({ params }) => logs.requestHostKey(params[0]!) },
-    { method: "POST", path: "/api/v1/hosts/:id/host-key/accept", auth: "admin", handle: async ({ params, body }) => logs.acceptHostKey(params[0]!, (await body()).fingerprint) },
+    {
+      method: "POST",
+      path: "/api/v1/hosts/:id/host-key/accept",
+      auth: "admin",
+      handle: async ({ params, body }) => logs.acceptHostKey(params[0]!, (await body()).fingerprint),
+    },
 
     // Retention.
     { method: "GET", path: "/api/v1/settings", auth: "viewer", handle: () => logs.settings() },
@@ -415,7 +491,18 @@ export function createApp({ db, logs, vlogs, version, auth, webDir, docsDir, ope
         const principal = r.auth !== "none" && r.auth !== "agent" && r.auth !== "source" ? auth.authorize(req, r.auth) : (undefined as never);
         const params = m.slice(1).map(decodeURIComponent);
         const limit = r.bodyLimit ?? 64 * 1024;
-        const result = await r.handle({ req, res, url, params, agent, source, principal, actor: principal && actorOf(principal), body: () => readJson(req, limit), raw: () => readRaw(req, limit) });
+        const result = await r.handle({
+          req,
+          res,
+          url,
+          params,
+          agent,
+          source,
+          principal,
+          actor: principal && actorOf(principal),
+          body: () => readJson(req, limit),
+          raw: () => readRaw(req, limit),
+        });
         if (!res.headersSent && result !== undefined) json(res, 200, result);
       } catch (err) {
         if (res.headersSent) {

@@ -52,11 +52,12 @@ export const bytes = (n: number | null | undefined) => {
   const u = ["B", "KiB", "MiB", "GiB", "TiB"];
   let i = 0;
   let v = n;
-  while (v >= 1024 && i < u.length - 1) (v /= 1024), i++;
+  while (v >= 1024 && i < u.length - 1) ((v /= 1024), i++);
   return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
 };
 
-export const count = (n: number | null | undefined) => (n == null ? "–" : new Intl.NumberFormat("en", { notation: n >= 100_000 ? "compact" : "standard" }).format(n));
+export const count = (n: number | null | undefined) =>
+  n == null ? "–" : new Intl.NumberFormat("en", { notation: n >= 100_000 ? "compact" : "standard" }).format(n);
 
 /** A line's level as a badge; lines without one show none. */
 export function Level({ level }: { level: string | null }) {
@@ -115,8 +116,33 @@ export function Pairs({ items }: { items: Array<[string, ReactNode]> }) {
 }
 
 /** A simple table of rows, with search over every column. */
-export function List<T>({ label, rows, columns, empty, getRowId, pageSize = 50 }: { label: string; rows: T[] | undefined; columns: Column<T>[]; empty: string; getRowId: (r: T) => string; pageSize?: number }) {
-  return <DataTable label={label} columns={columns} rows={rows ?? []} loading={!rows} getRowId={getRowId} pageSize={pageSize} density="compact" empty={<EmptyState title={empty} />} />;
+export function List<T>({
+  label,
+  rows,
+  columns,
+  empty,
+  getRowId,
+  pageSize = 50,
+}: {
+  label: string;
+  rows: T[] | undefined;
+  columns: Column<T>[];
+  empty: string;
+  getRowId: (r: T) => string;
+  pageSize?: number;
+}) {
+  return (
+    <DataTable
+      label={label}
+      columns={columns}
+      rows={rows ?? []}
+      loading={!rows}
+      getRowId={getRowId}
+      pageSize={pageSize}
+      density="compact"
+      empty={<EmptyState title={empty} />}
+    />
+  );
 }
 
 /** The link to Explorer with a query. */

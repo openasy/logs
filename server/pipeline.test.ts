@@ -42,7 +42,9 @@ describe("pipelines", () => {
   });
 
   it("take named parts of a regular expression, including msg and time", () => {
-    const run = compile(checkProcessors([{ type: "parse-regex", pattern: '^(?<remote_addr>\\S+) \\S+ \\S+ \\[(?<time>[^\\]]+)\\] "(?<msg>[^"]*)" (?<status>\\d{3})' }]));
+    const run = compile(
+      checkProcessors([{ type: "parse-regex", pattern: '^(?<remote_addr>\\S+) \\S+ \\S+ \\[(?<time>[^\\]]+)\\] "(?<msg>[^"]*)" (?<status>\\d{3})' }]),
+    );
     const { kept } = run([line('203.0.113.9 - - [21/Oct/2026:09:58:00 +0000] "GET /orders HTTP/1.1" 502 157')]);
     expect(kept[0]!.msg).toBe("GET /orders HTTP/1.1");
     expect(kept[0]!.fields).toEqual({ remote_addr: "203.0.113.9", status: "502" });
@@ -65,7 +67,9 @@ describe("pipelines", () => {
   });
 
   it("mask in the message and in every field", () => {
-    const { kept } = compile([{ type: "mask", pattern: "\\b\\d{16}\\b", replacement: "[card]" }])([line("paid with 4111111111111111", { card: "4111111111111111" })]);
+    const { kept } = compile([{ type: "mask", pattern: "\\b\\d{16}\\b", replacement: "[card]" }])([
+      line("paid with 4111111111111111", { card: "4111111111111111" }),
+    ]);
     expect(kept[0]).toMatchObject({ msg: "paid with [card]", fields: { card: "[card]" } });
   });
 
@@ -112,6 +116,10 @@ describe("levels and times", () => {
   });
 
   it("reads shippers' objects", () => {
-    expect(fromObject({ "@timestamp": "2026-10-21T10:00:00Z", message: "hi", log: { level: "info" }, host: { name: "web-1" } }, T)).toEqual({ time: T, msg: "hi", fields: { "log.level": "info", "host.name": "web-1" } });
+    expect(fromObject({ "@timestamp": "2026-10-21T10:00:00Z", message: "hi", log: { level: "info" }, host: { name: "web-1" } }, T)).toEqual({
+      time: T,
+      msg: "hi",
+      fields: { "log.level": "info", "host.name": "web-1" },
+    });
   });
 });

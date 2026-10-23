@@ -28,7 +28,9 @@ const syslogEnabled = process.env.LOGS_SYSLOG !== "false";
 // Sign-in secrets, webhook secrets and the syslog TLS key are sealed with it (ADR 0021): Logs does not start without it.
 const kek = readSecretsKey(secretsKeyFile);
 if (!kek) {
-  log("error", "no key-encryption key: mount 32 random bytes (openssl rand -hex 32) and set LOGS_SECRETS_KEY_FILE if not at the default", { file: secretsKeyFile });
+  log("error", "no key-encryption key: mount 32 random bytes (openssl rand -hex 32) and set LOGS_SECRETS_KEY_FILE if not at the default", {
+    file: secretsKeyFile,
+  });
   process.exit(1);
 }
 if (!existsSync(binary)) {
@@ -44,7 +46,13 @@ const publicUrl = (process.env.LOGS_PUBLIC_URL ?? `http://localhost:${port}`).re
 const vlogs = createVlogsClient(`http://127.0.0.1:${vlogsPort}`);
 const logs = createLogs(db, keyring, vlogs, { version, publicUrl });
 const retention = logs.settings();
-const victoria = startVictoriaLogs({ binary, dataPath: join(dataDir, "vlogs"), port: vlogsPort, retentionDays: retention.retentionDays, maxDiskBytes: retention.maxDiskGb * 1024 ** 3 });
+const victoria = startVictoriaLogs({
+  binary,
+  dataPath: join(dataDir, "vlogs"),
+  port: vlogsPort,
+  retentionDays: retention.retentionDays,
+  maxDiskBytes: retention.maxDiskGb * 1024 ** 3,
+});
 if (!(await waitHealthy(vlogs))) log("warn", "VictoriaLogs is not answering yet; Logs starts anyway and /readyz says so");
 
 const auth = createAuth({
@@ -113,12 +121,19 @@ const server = createServer(
 );
 // Long batches from shippers and agents: allow them the time to arrive.
 server.requestTimeout = 5 * 60_000;
-const metricsServer = metricsPort !== undefined ? createServer(createMetricsHandler(() => collectGauges({ logs, vlogs, syslog, victoriaLogs: () => victoria.state }), version)) : undefined;
+const metricsServer =
+  metricsPort !== undefined
+    ? createServer(createMetricsHandler(() => collectGauges({ logs, vlogs, syslog, victoriaLogs: () => victoria.state }), version))
+    : undefined;
 metricsServer?.listen(metricsPort, () => log("info", "metrics on their own port", { port: metricsPort }));
 
 server.listen(port, () => log("info", "logs started", { version, port, data: dataDir, headless, syslog: syslogEnabled }));
 if (!publicUrl.startsWith("https://") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|$)/.test(publicUrl)) {
-  log("warn", "LOGS_PUBLIC_URL is not https: browsers will not keep secure cookies or allow passkeys, and ingest tokens travel in clear. Put Logs behind TLS (ADR 0026)", { url: publicUrl });
+  log(
+    "warn",
+    "LOGS_PUBLIC_URL is not https: browsers will not keep secure cookies or allow passkeys, and ingest tokens travel in clear. Put Logs behind TLS (ADR 0026)",
+    { url: publicUrl },
+  );
 }
 const setup = auth.setupLink();
 // No default password (ADR 0013): the first person to open this link becomes the owner.

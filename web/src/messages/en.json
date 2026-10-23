@@ -199,7 +199,8 @@
     "matches": "Matches",
     "keep": "Keep %",
     "value": "Value",
-    "noSettings": "No settings."
+    "noSettings": "No settings.",
+    "statusStatusD3Msg": "status=(?<status>\\d{3}) (?<msg>.*)"
   },
   "pipelineEditor": {
     "pipeline": "Pipeline",
@@ -235,7 +236,12 @@
     "rsyslogConfiguration": "rsyslog configuration",
     "theCertificateAsEtcRsyslog": "The certificate, as /etc/rsyslog.d/openasy-logs.pem",
     "logsMadeThisCertificate": "Logs made this certificate",
-    "sendersTrustItBecauseYou": "Senders trust it because you copy it to them. To use one from your own CA, mount it and set LOGS_SYSLOG_TLS_CERT_FILE and LOGS_SYSLOG_TLS_KEY_FILE."
+    "sendersTrustItBecauseYou": "Senders trust it because you copy it to them. To use one from your own CA, mount it and set LOGS_SYSLOG_TLS_CERT_FILE and LOGS_SYSLOG_TLS_KEY_FILE.",
+    "tcpRfc5424OrRfc": "{{host}}:{{tlsPort}}, TCP, RFC 5424 or RFC 3164, octet-counted or one message per line",
+    "plain": "Plain",
+    "tcpAndUdp": "{{host}}:{{plainPort}}, TCP and UDP",
+    "offForThisSource": "Off for this source",
+    "certificate": "Certificate"
   },
   "sourcePage": {
     "sources": "Sources",
@@ -259,7 +265,11 @@
     "hostsReadOverSsh": "Hosts read over SSH",
     "logsAgentReadsJournaldAnd": "logs-agent reads journald and Docker on the hosts under",
     "hosts": "Hosts",
-    "andTheirLinesGoThrough": ", and their lines go through this pipeline."
+    "andTheirLinesGoThrough": ", and their lines go through this pipeline.",
+    "linesTaken": "Lines taken",
+    "droppedByThePipeline": "Dropped by the pipeline",
+    "lastLine": "Last line",
+    "lastError": "Last error"
   },
   "addSource": {
     "addASource": "Add a source",

@@ -71,9 +71,15 @@ describe("syslog", () => {
 
   it("takes TLS from the source's networks", { timeout: 15_000 }, async () => {
     app.logs.updateSource(sourceId, { networks: ["127.0.0.0/8", "::1"] });
-    await sendTls(frame(`<11>1 ${new Date().toISOString()} router-1 bgpd 12 - - neighbor 192.0.2.1 down`) + frame("<14>1 - router-1 bgpd - - - neighbor 192.0.2.1 up"));
+    await sendTls(
+      frame(`<11>1 ${new Date().toISOString()} router-1 bgpd 12 - - neighbor 192.0.2.1 down`) + frame("<14>1 - router-1 bgpd - - - neighbor 192.0.2.1 up"),
+    );
     const lines = await app.until("source:network host:router-1", 2);
-    expect(lines.find((l) => l.msg.includes("down"))).toMatchObject({ level: "error", service: "bgpd", fields: { "syslog.procid": "12", "syslog.facility": "user" } });
+    expect(lines.find((l) => l.msg.includes("down"))).toMatchObject({
+      level: "error",
+      service: "bgpd",
+      fields: { "syslog.procid": "12", "syslog.facility": "user" },
+    });
   });
 
   it("takes plain TCP and UDP only when the source allows it", { timeout: 15_000 }, async () => {

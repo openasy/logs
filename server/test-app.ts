@@ -25,7 +25,11 @@ export const REPORT = (version: string) => ({
   version,
   caPublicKey: CA_KEY,
   keyPublicKey: HOST_KEY.replace("Fm", "Hm"),
-  setup: { sshdConfig: "TrustedUserCAKeys /etc/ssh/openasy_logs_ca.pub\n", hostSetup: "useradd openasy\nusermod -aG systemd-journal openasy\n", authorizedKey: "restrict ssh-ed25519 AAAA" },
+  setup: {
+    sshdConfig: "TrustedUserCAKeys /etc/ssh/openasy_logs_ca.pub\n",
+    hostSetup: "useradd openasy\nusermod -aG systemd-journal openasy\n",
+    authorizedKey: "restrict ssh-ed25519 AAAA",
+  },
   running: 0,
 });
 
@@ -75,7 +79,11 @@ export async function startApp(opts: Partial<AppOptions> & { version: string }) 
   const browser = async (path: string, init: { method?: string; body?: unknown } = {}) => {
     const res = await fetch(base + path, {
       method: init.method ?? (init.body === undefined ? "GET" : "POST"),
-      headers: { origin: base, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; "), ...(init.body !== undefined && { "content-type": "application/json" }) },
+      headers: {
+        origin: base,
+        cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; "),
+        ...(init.body !== undefined && { "content-type": "application/json" }),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
     for (const c of res.headers.getSetCookie()) {
@@ -91,28 +99,46 @@ export async function startApp(opts: Partial<AppOptions> & { version: string }) 
   await browser("/api/v1/auth/me/totp/confirm", { body: { code: totp(secret) } });
   const token = async (role: string) => ((await (await browser("/api/v1/auth/tokens", { body: { name: role, role } })).json()) as { token: string }).token;
   const tokens = { admin: await token("admin"), editor: await token("editor"), viewer: await token("viewer") };
-  const as = (role: keyof typeof tokens) => (path: string, init: RequestInit = {}) =>
-    fetch(base + path, { ...init, headers: { authorization: `Bearer ${tokens[role]}`, "content-type": "application/json", ...init.headers } });
+  const as =
+    (role: keyof typeof tokens) =>
+    (path: string, init: RequestInit = {}) =>
+      fetch(base + path, { ...init, headers: { authorization: `Bearer ${tokens[role]}`, "content-type": "application/json", ...init.headers } });
 
   /** A stand-in logs-agent: enrols with the token, then each round asks for jobs and answers them. */
   const fakeAgent = (agentSecret: string) => {
     const hosts = new Map<string, FakeHost>();
     const post = (path: string, body: unknown) =>
-      fetch(base + path, { method: "POST", headers: { authorization: `Bearer ${agentSecret}`, "content-type": "application/json", "content-encoding": "gzip" }, body: gzipSync(JSON.stringify(body)) });
+      fetch(base + path, {
+        method: "POST",
+        headers: { authorization: `Bearer ${agentSecret}`, "content-type": "application/json", "content-encoding": "gzip" },
+        body: gzipSync(JSON.stringify(body)),
+      });
     return {
       hosts,
       async round() {
-        const { jobs } = (await (await post("/api/v1/agent/work", REPORT(opts.version))).json()) as { jobs: Array<{ id: string; hostId: string; action: string; target: { address: string; hostKeys: string[] }; cursor: { journal: string | null } }> };
+        const { jobs } = (await (await post("/api/v1/agent/work", REPORT(opts.version))).json()) as {
+          jobs: Array<{ id: string; hostId: string; action: string; target: { address: string; hostKeys: string[] }; cursor: { journal: string | null } }>;
+        };
         const answers: Response[] = [];
         for (const j of jobs) {
           const h = hosts.get(j.target.address);
           const b = { jobId: j.id, hostId: j.hostId };
-          if (!h) answers.push(await post("/api/v1/agent/results", { ...b, ok: false, error: { kind: "unreachable", message: `ssh: connect to host ${j.target.address} port 22: Connection refused` } }));
+          if (!h)
+            answers.push(
+              await post("/api/v1/agent/results", {
+                ...b,
+                ok: false,
+                error: { kind: "unreachable", message: `ssh: connect to host ${j.target.address} port 22: Connection refused` },
+              }),
+            );
           else if (j.action === "host-key") answers.push(await post("/api/v1/agent/results", { ...b, ok: true, hostKeys: [h.key] }));
           else if (h.fail) answers.push(await post("/api/v1/agent/results", { ...b, ok: false, error: h.fail }));
-          else if (!j.target.hostKeys.includes(h.key)) answers.push(await post("/api/v1/agent/results", { ...b, ok: false, error: { kind: "host-key-changed", message: "changed" }, hostKeys: [h.key] }));
+          else if (!j.target.hostKeys.includes(h.key))
+            answers.push(await post("/api/v1/agent/results", { ...b, ok: false, error: { kind: "host-key-changed", message: "changed" }, hostKeys: [h.key] }));
           else {
-            answers.push(await post("/api/v1/agent/results", { ...b, ok: true, entries: h.lines, cursor: { journal: h.cursor ?? null, docker: null }, unreadable: [] }));
+            answers.push(
+              await post("/api/v1/agent/results", { ...b, ok: true, entries: h.lines, cursor: { journal: h.cursor ?? null, docker: null }, unreadable: [] }),
+            );
             h.lines = [];
           }
         }
@@ -122,8 +148,17 @@ export async function startApp(opts: Partial<AppOptions> & { version: string }) 
     };
   };
   const enroll = async (name: string) => {
-    const created = (await (await as("admin")("/api/v1/agents", { method: "POST", body: JSON.stringify({ name }) })).json()) as { agent: { id: string }; enrollToken: string };
-    const r = (await (await fetch(`${base}/api/v1/agent/enroll`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: created.enrollToken, ...REPORT(opts.version) }) })).json()) as { secret: string };
+    const created = (await (await as("admin")("/api/v1/agents", { method: "POST", body: JSON.stringify({ name }) })).json()) as {
+      agent: { id: string };
+      enrollToken: string;
+    };
+    const r = (await (
+      await fetch(`${base}/api/v1/agent/enroll`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: created.enrollToken, ...REPORT(opts.version) }),
+      })
+    ).json()) as { secret: string };
     return { id: created.agent.id, secret: r.secret, ...fakeAgent(r.secret) };
   };
 
@@ -143,7 +178,23 @@ export async function startApp(opts: Partial<AppOptions> & { version: string }) 
     await victoria.stop();
     rmSync(dir, { recursive: true, force: true });
   };
-  return { db, logs, vlogs, victoria, base, tokens, enroll, until, webhooks, hookStatus, settingsChanged, admin: as("admin"), editor: as("editor"), viewer: as("viewer"), close };
+  return {
+    db,
+    logs,
+    vlogs,
+    victoria,
+    base,
+    tokens,
+    enroll,
+    until,
+    webhooks,
+    hookStatus,
+    settingsChanged,
+    admin: as("admin"),
+    editor: as("editor"),
+    viewer: as("viewer"),
+    close,
+  };
 }
 
 function totp(secret: string) {

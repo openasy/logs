@@ -17,13 +17,13 @@ services:
     security_opt: ["no-new-privileges:true"]
     tmpfs: [/tmp]
     ports:
-      - "127.0.0.1:8080:8080"   # UI, API and ingest; put a TLS proxy in front to reach it from elsewhere
-      - "6514:6514"             # Syslog over TLS; remove if no host sends Syslog
+      - "127.0.0.1:8080:8080" # UI, API and ingest; put a TLS proxy in front to reach it from elsewhere
+      - "6514:6514" # Syslog over TLS; remove if no host sends Syslog
     volumes:
-      - logs-data:/data   # SQLite (sources, pipelines, views, people) and VictoriaLogs' storage
+      - logs-data:/data # SQLite (sources, pipelines, views, people) and VictoriaLogs' storage
       # - ./hosts.yaml:/config/hosts.yaml:ro   # the install's servers, shared with Infrastructure
     secrets:
-      - openasy-kek   # mounted at /run/secrets/openasy-kek
+      - openasy-kek # mounted at /run/secrets/openasy-kek
     environment:
       # The address people open Logs at; with a TLS proxy in front, its https:// URL.
       LOGS_PUBLIC_URL: ${LOGS_PUBLIC_URL:-http://localhost:8080}
@@ -35,17 +35,17 @@ services:
       # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
 
   logs-agent:
-    image: ghcr.io/openasy/logs-agent:0.1.0   # always the same version as logs
+    image: ghcr.io/openasy/logs-agent:0.1.0 # always the same version as logs
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    tmpfs: [/tmp]   # SSH keys and certificates for one connection; never on a volume
+    tmpfs: [/tmp] # SSH keys and certificates for one connection; never on a volume
     volumes:
-      - logs-agent-data:/data   # its CA, fixed key and secret, sealed with its own key
+      - logs-agent-data:/data # its CA, fixed key and secret, sealed with its own key
     secrets:
       - source: openasy-agent-kek
-        target: openasy-agent-kek   # mounted at /run/secrets/openasy-agent-kek
+        target: openasy-agent-kek # mounted at /run/secrets/openasy-agent-kek
     environment:
       LOGS_URL: http://logs:8080
       # One-time, from Settings, Agents; only needed for the first start.

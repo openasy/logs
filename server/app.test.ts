@@ -11,7 +11,9 @@ import { CA_KEY, HOST_KEY, OTHER_KEY, REPORT, startApp } from "./test-app.ts";
 // also the behaviour test, against a real VictoriaLogs: sources and pipelines, every way of sending, search, views
 // and thresholds, agents and hosts.
 
-type Spec = typeof OPENAPI & { paths: Record<string, Record<string, { responses: Record<string, { $ref?: string; content?: Record<string, { schema: object }> }> }>> };
+type Spec = typeof OPENAPI & {
+  paths: Record<string, Record<string, { responses: Record<string, { $ref?: string; content?: Record<string, { schema: object }> }> }>>;
+};
 const spec = JSON.parse(readFileSync(new URL("../openapi.json", import.meta.url), "utf8")) as Spec;
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 const ajv = new Ajv2020({ strict: false, validateFormats: false });
@@ -27,7 +29,12 @@ afterAll(() => app.close(), 30_000);
 
 type Role = "admin" | "editor" | "viewer" | "none";
 type Auth = Role | { secret: string } | { header: string };
-async function call(role: Auth, method: string, path: string, opts: { concrete?: string; body?: unknown; raw?: Buffer | string; headers?: Record<string, string> } = {}) {
+async function call(
+  role: Auth,
+  method: string,
+  path: string,
+  opts: { concrete?: string; body?: unknown; raw?: Buffer | string; headers?: Record<string, string> } = {},
+) {
   const url = app.base + (opts.concrete ?? path);
   const init: RequestInit = { method, ...(opts.body !== undefined && { body: JSON.stringify(opts.body) }), ...(opts.raw !== undefined && { body: opts.raw }) };
   const headers = { "content-type": "application/json", ...opts.headers };
@@ -41,7 +48,10 @@ async function call(role: Auth, method: string, path: string, opts: { concrete?:
   expect(operation, `${method} ${path} is not in openapi.json`).toBeDefined();
   covered.add(`${method} ${path}`);
   const declared = operation!.responses[String(res.status)];
-  expect(declared, `${method} ${opts.concrete ?? path} answered ${res.status}, which openapi.json does not list: ${res.status >= 400 ? await res.clone().text() : ""}`).toBeDefined();
+  expect(
+    declared,
+    `${method} ${opts.concrete ?? path} answered ${res.status}, which openapi.json does not list: ${res.status >= 400 ? await res.clone().text() : ""}`,
+  ).toBeDefined();
   const shared = declared!.$ref?.split("/").pop();
   const response = shared ? (spec.components.responses as Record<string, { content: Record<string, unknown> }>)[shared]! : declared!;
   if (!response.content) return { status: res.status, body: undefined as never, headers: res.headers };
@@ -50,7 +60,9 @@ async function call(role: Auth, method: string, path: string, opts: { concrete?:
   // Each test reads the fields it checks; the schema above has already checked their shape.
   const data: any = type.endsWith("json") ? await res.json() : type === "application/x-protobuf" ? Buffer.from(await res.arrayBuffer()) : await res.text();
   if (type.endsWith("json")) {
-    const at = shared ? `openapi#/components/responses/${shared}` : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
+    const at = shared
+      ? `openapi#/components/responses/${shared}`
+      : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
     const validate = ajv.getSchema(`${at}/content/${type.replace("/", "~1")}/schema`)!;
     expect(validate(data), `${method} ${opts.concrete ?? path}: ${JSON.stringify(validate.errors)}`).toBe(true);
   }
@@ -89,7 +101,10 @@ describe("the product", () => {
     expect((await call("viewer", "GET", "/api/v1/settings")).body).toEqual({ retentionDays: 30, maxDiskGb: 0 });
     expect((await call("editor", "PATCH", "/api/v1/settings", { body: { retentionDays: 90 } })).status).toBe(403);
     expect((await call("admin", "PATCH", "/api/v1/settings", { body: { retentionDays: 0 } })).status).toBe(422);
-    expect((await call("admin", "PATCH", "/api/v1/settings", { body: { retentionDays: 90, maxDiskGb: 50 } })).body).toEqual({ retentionDays: 90, maxDiskGb: 50 });
+    expect((await call("admin", "PATCH", "/api/v1/settings", { body: { retentionDays: 90, maxDiskGb: 50 } })).body).toEqual({
+      retentionDays: 90,
+      maxDiskGb: 50,
+    });
     expect(app.settingsChanged).toEqual([{ retentionDays: 90, maxDiskGb: 50 }]);
     // The same values again change nothing.
     await call("admin", "PATCH", "/api/v1/settings", { body: { retentionDays: 90 } });
@@ -116,19 +131,31 @@ describe("sources", () => {
     expect(r.status).toBe(201);
     expect(r.body.token).toBeUndefined();
     expect((await call("admin", "POST", "/api/v1/sources/{id}/token", { concrete: `/api/v1/sources/${r.body.source.id}/token` })).status).toBe(409);
-    expect((await call("admin", "PATCH", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${r.body.source.id}`, body: { networks: [] } })).status).toBe(422);
+    expect((await call("admin", "PATCH", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${r.body.source.id}`, body: { networks: [] } })).status).toBe(
+      422,
+    );
     expect((await call("admin", "DELETE", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${r.body.source.id}` })).status).toBe(204);
     expect((await call("viewer", "GET", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${r.body.source.id}` })).status).toBe(404);
   });
 
   it("change their pipeline, and processors can be tried first", async () => {
-    const processors = [{ type: "parse-json" }, { type: "map-level" }, { type: "mask-secrets" }, { type: "drop", field: "path", pattern: "^/healthz$" }, { type: "set", field: "env", value: "prod" }];
-    const tried = await call("editor", "POST", "/api/v1/pipelines/preview", { body: { processors, lines: ['{"msg":"hi","level":"ERR"}', '{"path":"/healthz"}'] } });
+    const processors = [
+      { type: "parse-json" },
+      { type: "map-level" },
+      { type: "mask-secrets" },
+      { type: "drop", field: "path", pattern: "^/healthz$" },
+      { type: "set", field: "env", value: "prod" },
+    ];
+    const tried = await call("editor", "POST", "/api/v1/pipelines/preview", {
+      body: { processors, lines: ['{"msg":"hi","level":"ERR"}', '{"path":"/healthz"}'] },
+    });
     expect(tried.body.results).toEqual([
       { kept: true, msg: "hi", fields: { level: "error", env: "prod" } },
       { kept: false, msg: null, fields: {} },
     ]);
-    expect((await call("editor", "POST", "/api/v1/pipelines/preview", { body: { processors: [{ type: "parse-regex", pattern: "(" }], lines: [] } })).status).toBe(422);
+    expect(
+      (await call("editor", "POST", "/api/v1/pipelines/preview", { body: { processors: [{ type: "parse-regex", pattern: "(" }], lines: [] } })).status,
+    ).toBe(422);
     const r = await call("admin", "PATCH", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${http.id}`, body: { processors } });
     expect(r.body.processors).toEqual(processors);
     expect((await call("viewer", "GET", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${http.id}` })).body.processors).toEqual(processors);
@@ -147,7 +174,10 @@ describe("ingest", () => {
       JSON.stringify({ message: "connected to db with password=s3cret", level: "info", service: "checkout" }),
     ].join("\n");
     expect((await call({ secret: "olg_wrong" }, "POST", "/api/v1/ingest/jsonline", { raw: body })).status).toBe(401);
-    const r = await call({ secret: http.token }, "POST", "/api/v1/ingest/jsonline", { raw: gzipSync(body), headers: { "content-type": "application/x-ndjson", "content-encoding": "gzip" } });
+    const r = await call({ secret: http.token }, "POST", "/api/v1/ingest/jsonline", {
+      raw: gzipSync(body),
+      headers: { "content-type": "application/x-ndjson", "content-encoding": "gzip" },
+    });
     expect(r.status).toBe(202);
     expect(r.body).toEqual({ accepted: 2, dropped: 1 });
     const lines = await app.until("source:apps", 2);
@@ -162,22 +192,47 @@ describe("ingest", () => {
     const info = await call(basic, "GET", "/api/v1/ingest/elasticsearch");
     expect(info.headers.get("x-elastic-product")).toBe("Elasticsearch");
     expect((await call({ header: `ApiKey ${http.token}` }, "GET", "/api/v1/ingest/elasticsearch/_license")).status).toBe(200);
-    const doc = (msg: string) => [JSON.stringify({ create: { _index: "winlogbeat" } }), JSON.stringify({ "@timestamp": new Date().toISOString(), message: msg, event: { code: 4625 }, winlog: { channel: "Security" } })];
-    const r = await call(basic, "POST", "/api/v1/ingest/elasticsearch/_bulk", { raw: [...doc("An account failed to log on"), ""].join("\n"), headers: { "content-type": "application/x-ndjson" } });
+    const doc = (msg: string) => [
+      JSON.stringify({ create: { _index: "winlogbeat" } }),
+      JSON.stringify({ "@timestamp": new Date().toISOString(), message: msg, event: { code: 4625 }, winlog: { channel: "Security" } }),
+    ];
+    const r = await call(basic, "POST", "/api/v1/ingest/elasticsearch/_bulk", {
+      raw: [...doc("An account failed to log on"), ""].join("\n"),
+      headers: { "content-type": "application/x-ndjson" },
+    });
     expect(r.body).toMatchObject({ errors: false, items: [{ create: { status: 201 } }] });
-    expect((await call(basic, "POST", "/api/v1/ingest/elasticsearch/{index}/_bulk", { concrete: "/api/v1/ingest/elasticsearch/logs-2026/_bulk", raw: doc("again").join("\n") + "\n" })).status).toBe(200);
+    expect(
+      (
+        await call(basic, "POST", "/api/v1/ingest/elasticsearch/{index}/_bulk", {
+          concrete: "/api/v1/ingest/elasticsearch/logs-2026/_bulk",
+          raw: doc("again").join("\n") + "\n",
+        })
+      ).status,
+    ).toBe(200);
     expect((await call(basic, "POST", "/api/v1/ingest/elasticsearch/_bulk", { raw: '{"index":{}}\n{broken\n' })).status).toBe(400);
     const lines = await app.until('source:apps "event.code":4625', 2);
     expect(lines[0]!.fields["winlog.channel"]).toBe("Security");
   });
 
   it("takes OpenTelemetry logs as JSON and protobuf", async () => {
-    const otlp = { resourceLogs: [{ resource: { attributes: [{ key: "service.name", value: { stringValue: "cart" } }] }, scopeLogs: [{ logRecords: [{ timeUnixNano: String(BigInt(Date.now()) * 1_000_000n), severityNumber: 13, body: { stringValue: "cart is slow" } }] }] }] };
+    const otlp = {
+      resourceLogs: [
+        {
+          resource: { attributes: [{ key: "service.name", value: { stringValue: "cart" } }] },
+          scopeLogs: [{ logRecords: [{ timeUnixNano: String(BigInt(Date.now()) * 1_000_000n), severityNumber: 13, body: { stringValue: "cart is slow" } }] }],
+        },
+      ],
+    };
     const r = await call({ secret: http.token }, "POST", "/api/v1/ingest/otlp/v1/logs", { body: otlp });
     expect(r.body).toEqual({});
-    const pb = await call({ secret: http.token }, "POST", "/api/v1/ingest/otlp/v1/logs", { raw: Buffer.alloc(0), headers: { "content-type": "application/x-protobuf" } });
+    const pb = await call({ secret: http.token }, "POST", "/api/v1/ingest/otlp/v1/logs", {
+      raw: Buffer.alloc(0),
+      headers: { "content-type": "application/x-protobuf" },
+    });
     expect(pb.status).toBe(200);
-    expect((await call({ secret: http.token }, "POST", "/api/v1/ingest/otlp/v1/logs", { raw: "x", headers: { "content-type": "text/plain" } })).status).toBe(415);
+    expect((await call({ secret: http.token }, "POST", "/api/v1/ingest/otlp/v1/logs", { raw: "x", headers: { "content-type": "text/plain" } })).status).toBe(
+      415,
+    );
     expect((await app.until("service:cart", 1))[0]).toMatchObject({ level: "warn", msg: "cart is slow" });
   });
 
@@ -199,15 +254,22 @@ describe("search", () => {
     const r = await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ query: "service:checkout", ...hour() })}` });
     expect(r.body.lines.map((l: { msg: string }) => l.msg).sort()).toEqual(["connected to db with password=***", "payment failed for order 42"]);
     expect(r.body.truncated).toBe(false);
-    expect((await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ query: "service:checkout", limit: "1", ...hour() })}` })).body).toMatchObject({ truncated: true });
+    expect(
+      (await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ query: "service:checkout", limit: "1", ...hour() })}` })).body,
+    ).toMatchObject({ truncated: true });
     expect((await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ query: "bad((" })}` })).status).toBe(422);
     expect((await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ limit: "0" })}` })).status).toBe(422);
-    expect((await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ start: "2026-10-21T10:00:00Z", end: "2026-10-21T09:00:00Z" })}` })).status).toBe(422);
+    expect(
+      (await call("viewer", "GET", "/api/v1/search", { concrete: `/api/v1/search${qs({ start: "2026-10-21T10:00:00Z", end: "2026-10-21T09:00:00Z" })}` }))
+        .status,
+    ).toBe(422);
     expect((await call("viewer", "GET", "/api/v1/searches")).status).toBe(403);
     const audit = await call("admin", "GET", "/api/v1/searches", { concrete: "/api/v1/searches?limit=2" });
     expect(audit.body.searches[0]).toMatchObject({ kind: "search", actor: expect.stringContaining("API token viewer") });
     expect(audit.body.nextCursor).toBeDefined();
-    expect((await call("admin", "GET", "/api/v1/searches", { concrete: `/api/v1/searches?cursor=${audit.body.nextCursor}` })).body.searches.length).toBeGreaterThan(0);
+    expect(
+      (await call("admin", "GET", "/api/v1/searches", { concrete: `/api/v1/searches?cursor=${audit.body.nextCursor}` })).body.searches.length,
+    ).toBeGreaterThan(0);
   });
 
   it("counts lines over time by level, and the frequent values of each field", async () => {
@@ -241,8 +303,20 @@ describe("views", () => {
 
   it("are saved by editors, with a threshold that calls a signed webhook", async () => {
     expect((await call("viewer", "POST", "/api/v1/views", { body: { name: "Errors", query: "level:error" } })).status).toBe(403);
-    expect((await call("editor", "POST", "/api/v1/views", { body: { name: "x", query: "*", alert: { threshold: 1, windowMinutes: 5, webhookUrl: "http://127.0.0.1:9428/insert" } } })).status).toBe(422);
-    const r = await call("editor", "POST", "/api/v1/views", { body: { name: "Checkout errors", query: "service:checkout level:error", alert: { threshold: 0, windowMinutes: 60, webhookUrl: "https://hooks.example.com/logs" } } });
+    expect(
+      (
+        await call("editor", "POST", "/api/v1/views", {
+          body: { name: "x", query: "*", alert: { threshold: 1, windowMinutes: 5, webhookUrl: "http://127.0.0.1:9428/insert" } },
+        })
+      ).status,
+    ).toBe(422);
+    const r = await call("editor", "POST", "/api/v1/views", {
+      body: {
+        name: "Checkout errors",
+        query: "service:checkout level:error",
+        alert: { threshold: 0, windowMinutes: 60, webhookUrl: "https://hooks.example.com/logs" },
+      },
+    });
     expect(r.status).toBe(201);
     viewId = r.body.view.id;
     secret = r.body.webhookSecret;
@@ -252,24 +326,40 @@ describe("views", () => {
     expect(app.webhooks).toHaveLength(1);
     const hook = app.webhooks[0]!;
     const signed = `${hook.headers["webhook-id"]}.${hook.headers["webhook-timestamp"]}.${hook.body}`;
-    expect(hook.headers["webhook-signature"]).toBe(`v1,${createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(signed).digest("base64")}`);
+    expect(hook.headers["webhook-signature"]).toBe(
+      `v1,${createHmac("sha256", Buffer.from(secret.slice(6), "base64"))
+        .update(signed)
+        .digest("base64")}`,
+    );
     expect(JSON.parse(hook.body)).toMatchObject({ type: "logs.view.fired", count: 1, threshold: 0, url: `https://logs.example.com/explorer?view=${viewId}` });
     // Still over: no second call.
     await app.logs.checkAlerts();
     expect(app.webhooks).toHaveLength(1);
-    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({ state: "firing", lastCount: 1 });
+    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({
+      state: "firing",
+      lastCount: 1,
+    });
     expect((await call("viewer", "GET", "/api/v1/summary")).body.alertsFiring).toBe(1);
   });
 
   it("keep the state when the webhook fails, and try again", async () => {
-    await call("editor", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}`, body: { alert: { threshold: 100, windowMinutes: 60, webhookUrl: "https://hooks.example.com/logs" } } });
+    await call("editor", "PATCH", "/api/v1/views/{id}", {
+      concrete: `/api/v1/views/${viewId}`,
+      body: { alert: { threshold: 100, windowMinutes: 60, webhookUrl: "https://hooks.example.com/logs" } },
+    });
     app.hookStatus.code = 500;
     await app.logs.checkAlerts();
-    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({ state: "firing", lastError: expect.stringContaining("500") });
+    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({
+      state: "firing",
+      lastError: expect.stringContaining("500"),
+    });
     app.hookStatus.code = 204;
     await app.logs.checkAlerts();
     expect(JSON.parse(app.webhooks.at(-1)!.body).type).toBe("logs.view.resolved");
-    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({ state: "ok", lastError: null });
+    expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}` })).body.alert).toMatchObject({
+      state: "ok",
+      lastError: null,
+    });
   });
 
   it("are changed by their owner or an admin; private ones are seen only by their owner", async () => {
@@ -277,13 +367,22 @@ describe("views", () => {
     expect((await call("viewer", "GET", "/api/v1/views")).body.views.map((v: { name: string }) => v.name)).toEqual(["Checkout errors"]);
     expect((await call("viewer", "GET", "/api/v1/views/{id}", { concrete: `/api/v1/views/${mine.body.view.id}` })).status).toBe(404);
     // A view without a threshold gets one: its secret is shown then.
-    const withAlert = await call("admin", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${mine.body.view.id}`, body: { alert: { threshold: 5, windowMinutes: 5, webhookUrl: "https://hooks.example.com/x" } } });
+    const withAlert = await call("admin", "PATCH", "/api/v1/views/{id}", {
+      concrete: `/api/v1/views/${mine.body.view.id}`,
+      body: { alert: { threshold: 5, windowMinutes: 5, webhookUrl: "https://hooks.example.com/x" } },
+    });
     expect(withAlert.body.webhookSecret).toMatch(/^whsec_/);
-    expect((await call("admin", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${mine.body.view.id}`, body: { alert: null } })).body.view.alert).toBeNull();
+    expect(
+      (await call("admin", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${mine.body.view.id}`, body: { alert: null } })).body.view.alert,
+    ).toBeNull();
     expect((await call("editor", "DELETE", "/api/v1/views/{id}", { concrete: `/api/v1/views/${mine.body.view.id}` })).status).toBe(404);
     const other = await call("admin", "POST", "/api/v1/views", { body: { name: "Shared by admin", query: "*" } });
-    expect((await call("editor", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${other.body.view.id}`, body: { name: "Mine now" } })).status).toBe(409);
-    expect((await call("admin", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}`, body: { name: "Checkout errors (all)" } })).body.view.name).toBe("Checkout errors (all)");
+    expect((await call("editor", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${other.body.view.id}`, body: { name: "Mine now" } })).status).toBe(
+      409,
+    );
+    expect(
+      (await call("admin", "PATCH", "/api/v1/views/{id}", { concrete: `/api/v1/views/${viewId}`, body: { name: "Checkout errors (all)" } })).body.view.name,
+    ).toBe("Checkout errors (all)");
     expect((await call("admin", "DELETE", "/api/v1/views/{id}", { concrete: `/api/v1/views/${other.body.view.id}` })).status).toBe(204);
   });
 });
@@ -312,7 +411,9 @@ describe("agents and hosts", () => {
     agent = await app.enroll("dc-2");
     expect((await call("viewer", "GET", "/api/v1/agents")).body.agents[0]).toMatchObject({ name: "dc-2", status: "online", version });
     expect((await call({ secret: "ola_wrong" }, "POST", "/api/v1/agent/work", { body: REPORT(version) })).status).toBe(401);
-    expect((await call({ secret: agent.secret }, "POST", "/api/v1/agent/results", { body: { jobId: "j", hostId: "nope", ok: true, entries: [] } })).status).toBe(404);
+    expect(
+      (await call({ secret: agent.secret }, "POST", "/api/v1/agent/results", { body: { jobId: "j", hostId: "nope", ok: true, entries: [] } })).status,
+    ).toBe(404);
   });
 
   it("hosts go through an ssh source made for them, after their key is accepted", async () => {
@@ -328,14 +429,32 @@ describe("agents and hosts", () => {
     await agent.round();
     const pending = (await call("viewer", "GET", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).body;
     expect(pending).toMatchObject({ status: "host-key-pending", pendingHostKeys: [{ fingerprint: fingerprint(HOST_KEY) }] });
-    expect((await call("admin", "POST", "/api/v1/hosts/{id}/host-key/accept", { concrete: `/api/v1/hosts/${hostId}/host-key/accept`, body: { fingerprint: "SHA256:nope" } })).status).toBe(422);
-    expect((await call("admin", "POST", "/api/v1/hosts/{id}/host-key/accept", { concrete: `/api/v1/hosts/${hostId}/host-key/accept`, body: { fingerprint: fingerprint(HOST_KEY) } })).body.status).toBe("pending");
+    expect(
+      (
+        await call("admin", "POST", "/api/v1/hosts/{id}/host-key/accept", {
+          concrete: `/api/v1/hosts/${hostId}/host-key/accept`,
+          body: { fingerprint: "SHA256:nope" },
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await call("admin", "POST", "/api/v1/hosts/{id}/host-key/accept", {
+          concrete: `/api/v1/hosts/${hostId}/host-key/accept`,
+          body: { fingerprint: fingerprint(HOST_KEY) },
+        })
+      ).body.status,
+    ).toBe("pending");
   });
 
   it("reads store lines under the host's name, then move the cursor", async () => {
     const h = agent.hosts.get("10.0.0.5")!;
     h.lines = [
-      { time: new Date().toISOString(), msg: "Failed password for root from 203.0.113.7", fields: { service: "sshd", level: "info", host: "what-the-host-says" } },
+      {
+        time: new Date().toISOString(),
+        msg: "Failed password for root from 203.0.113.7",
+        fields: { service: "sshd", level: "info", host: "what-the-host-says" },
+      },
       { msg: "Started Daily apt upgrade.", fields: { service: "systemd" } },
     ];
     const { jobs } = await agent.round();
@@ -360,7 +479,10 @@ describe("agents and hosts", () => {
   });
 
   it("failures and other versions are reported, and hosts move and go", async () => {
-    const moved = await call("admin", "PATCH", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}`, body: { address: "10.0.0.9", intervalSeconds: 30, containers: true } });
+    const moved = await call("admin", "PATCH", "/api/v1/hosts/{id}", {
+      concrete: `/api/v1/hosts/${hostId}`,
+      body: { address: "10.0.0.9", intervalSeconds: 30, containers: true },
+    });
     expect(moved.body).toMatchObject({ status: "new", hostKeys: [], intervalSeconds: 30, containers: true });
     await agent.round();
     expect((await call("viewer", "GET", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).body.statusDetail).toContain("Connection refused");

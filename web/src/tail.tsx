@@ -46,9 +46,22 @@ export function TailPage({ params }: { params: URLSearchParams }) {
       <PageHeader
         title={t("tailPage.liveTail")}
         description={t("tailPage.linesSentToLogsAppear")}
-        meta={paused ? <StatusBadge tone="neutral">{t("tailPage.paused")}</StatusBadge> : state === "streaming" ? <StatusBadge tone="success">{t("tailPage.streaming")}</StatusBadge> : <StatusBadge tone={state === "error" ? "warning" : "info"}>{state === "error" ? t("tailPage.reconnecting") : t("tailPage.connecting")}</StatusBadge>}
+        meta={
+          paused ? (
+            <StatusBadge tone="neutral">{t("tailPage.paused")}</StatusBadge>
+          ) : state === "streaming" ? (
+            <StatusBadge tone="success">{t("tailPage.streaming")}</StatusBadge>
+          ) : (
+            <StatusBadge tone={state === "error" ? "warning" : "info"}>{state === "error" ? t("tailPage.reconnecting") : t("tailPage.connecting")}</StatusBadge>
+          )
+        }
         actions={
-          <Button variant={paused ? "primary" : "secondary"} icon={paused ? <Play /> : <Pause />} aria-pressed={paused} onClick={() => (paused ? resume() : setPaused(true))}>
+          <Button
+            variant={paused ? "primary" : "secondary"}
+            icon={paused ? <Play /> : <Pause />}
+            aria-pressed={paused}
+            onClick={() => (paused ? resume() : setPaused(true))}
+          >
             {paused ? t("tailPage.resume") : t("tailPage.pause")}
           </Button>
         }
@@ -69,7 +82,15 @@ export function TailPage({ params }: { params: URLSearchParams }) {
           {t("tailPage.logsIsReconnectingIfIt")}
         </Callout>
       )}
-      <Panel title={t("tailPage.stream")} description={t("tailPage.shownNewestFirst", { length: lines.length, value: lines.length === 1 ? "line" : "lines", value2: paused && held.current.length ? `, ${held.current.length} waiting` : "" })} flush>
+      <Panel
+        title={t("tailPage.stream")}
+        description={t("tailPage.shownNewestFirst", {
+          length: lines.length,
+          value: lines.length === 1 ? "line" : "lines",
+          value2: paused && held.current.length ? `, ${held.current.length} waiting` : "",
+        })}
+        flush
+      >
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
             <LogHeader />

@@ -44,7 +44,14 @@ describe("JSON lines", () => {
 
 describe("Elasticsearch bulk", () => {
   it("reads documents after index and create actions", () => {
-    const body = ['{"index":{"_index":"winlogbeat"}}', '{"@timestamp":"2026-10-21T09:00:00Z","message":"logon","event":{"code":4624}}', '{"create":{}}', '{"message":"x"}', '{"delete":{"_id":"1"}}', ""].join("\n");
+    const body = [
+      '{"index":{"_index":"winlogbeat"}}',
+      '{"@timestamp":"2026-10-21T09:00:00Z","message":"logon","event":{"code":4624}}',
+      '{"create":{}}',
+      '{"message":"x"}',
+      '{"delete":{"_id":"1"}}',
+      "",
+    ].join("\n");
     const { entries, actions } = parseBulk(body, NOW);
     expect(actions).toEqual(["index", "create", "delete"]);
     expect(entries).toEqual([
@@ -63,7 +70,12 @@ describe("OpenTelemetry", () => {
   const json = {
     resourceLogs: [
       {
-        resource: { attributes: [{ key: "service.name", value: { stringValue: "checkout" } }, { key: "host.name", value: { stringValue: "web-2" } }] },
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "checkout" } },
+            { key: "host.name", value: { stringValue: "web-2" } },
+          ],
+        },
         scopeLogs: [
           {
             scope: { name: "app" },
@@ -73,7 +85,10 @@ describe("OpenTelemetry", () => {
                 severityNumber: 17,
                 severityText: "ERROR",
                 body: { stringValue: "payment failed" },
-                attributes: [{ key: "order.id", value: { intValue: "42" } }, { key: "retry", value: { boolValue: true } }],
+                attributes: [
+                  { key: "order.id", value: { intValue: "42" } },
+                  { key: "retry", value: { boolValue: true } },
+                ],
                 traceId: "5b8efff798038103d269b633813fc60c",
                 spanId: "eee19b7ec3c1b174",
               },
@@ -86,7 +101,18 @@ describe("OpenTelemetry", () => {
   const expected = {
     time: "2026-10-21T10:00:00.000Z",
     msg: "payment failed",
-    fields: { "service.name": "checkout", "host.name": "web-2", service: "checkout", host: "web-2", "otel.scope": "app", "order.id": "42", retry: "true", level: "error", trace_id: "5b8efff798038103d269b633813fc60c", span_id: "eee19b7ec3c1b174" },
+    fields: {
+      "service.name": "checkout",
+      "host.name": "web-2",
+      service: "checkout",
+      host: "web-2",
+      "otel.scope": "app",
+      "order.id": "42",
+      retry: "true",
+      level: "error",
+      trace_id: "5b8efff798038103d269b633813fc60c",
+      span_id: "eee19b7ec3c1b174",
+    },
   };
 
   it("reads OTLP JSON", () => {

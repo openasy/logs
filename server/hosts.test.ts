@@ -30,7 +30,8 @@ describe("hosts from the file", () => {
 
   const hosts = async () => (await json(await app.admin("/api/v1/hosts"))).hosts as Array<Record<string, any>>;
   const host = async (name: string) => (await hosts()).find((h) => h.name === name)!;
-  const DIRECT = "hosts:\n  - { name: bastion, address: 10.0.0.2, agent: dc1 }\n  - { name: web-1, address: 10.0.0.5, agent: dc1, hostKey: 'SHA256:PDOhaQiW49e9hQXf81r2bgjWlUS0+xzcwzCeUeVWhZo' }\n";
+  const DIRECT =
+    "hosts:\n  - { name: bastion, address: 10.0.0.2, agent: dc1 }\n  - { name: web-1, address: 10.0.0.5, agent: dc1, hostKey: 'SHA256:PDOhaQiW49e9hQXf81r2bgjWlUS0+xzcwzCeUeVWhZo' }\n";
 
   it("wait for their agent, and leave out hosts behind a jump host", async () => {
     expect(app.logs.syncFile(parseHosts(FIXTURE))).toEqual([
@@ -40,7 +41,10 @@ describe("hosts from the file", () => {
     ]);
     agent = await app.enroll("dc1");
     expect(app.logs.syncFile(parseHosts(FIXTURE))).toEqual(["web-1: Logs reaches hosts directly, not through a jump host like bastion; it is left out."]);
-    expect((await hosts()).map((h) => `${h.name} ${h.origin} ${h.agent.name} ${h.port} ${h.user}`)).toEqual(["bastion file dc1 22 openasy", "db-1 file dc1 2222 reader"]);
+    expect((await hosts()).map((h) => `${h.name} ${h.origin} ${h.agent.name} ${h.port} ${h.user}`)).toEqual([
+      "bastion file dc1 22 openasy",
+      "db-1 file dc1 2222 reader",
+    ]);
   });
 
   it("trust the key the file names, and only that one", async () => {
@@ -56,7 +60,10 @@ describe("hosts from the file", () => {
     await agent.round();
     const bastion = await host("bastion");
     expect(bastion).toMatchObject({ status: "host-key-pending", statusDetail: expect.stringMatching(/not SHA256:.* from the hosts file/) });
-    const refused = await app.admin(`/api/v1/hosts/${bastion.id}/host-key/accept`, { method: "POST", body: JSON.stringify({ fingerprint: fingerprint(OTHER_KEY) }) });
+    const refused = await app.admin(`/api/v1/hosts/${bastion.id}/host-key/accept`, {
+      method: "POST",
+      body: JSON.stringify({ fingerprint: fingerprint(OTHER_KEY) }),
+    });
     expect(refused.status).toBe(409);
   });
 
@@ -65,7 +72,9 @@ describe("hosts from the file", () => {
     expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "PATCH", body: JSON.stringify({ port: 2200 }) })).status).toBe(409);
     expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "DELETE" })).status).toBe(409);
     await app.admin("/api/v1/hosts", { method: "POST", body: JSON.stringify({ name: "mail-1", address: "10.0.0.9" }) });
-    expect(app.logs.syncFile(parseHosts("hosts:\n  - { name: mail-1, address: 10.0.0.9, agent: dc1 }\n"))).toEqual(["mail-1: a host with this name was added in Logs; remove it there to let the file manage it."]);
+    expect(app.logs.syncFile(parseHosts("hosts:\n  - { name: mail-1, address: 10.0.0.9, agent: dc1 }\n"))).toEqual([
+      "mail-1: a host with this name was added in Logs; remove it there to let the file manage it.",
+    ]);
     expect((await hosts()).map((h) => `${h.name} ${h.origin}`)).toEqual(["mail-1 ui"]);
   });
 });

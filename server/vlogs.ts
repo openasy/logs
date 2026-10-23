@@ -41,13 +41,25 @@ const RESERVED = new Set(["_msg", "_time", "_stream", "_stream_id", "level", "ho
 export function toLine(raw: Record<string, string>): Line {
   const fields: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) if (!RESERVED.has(k)) fields[k] = v;
-  return { time: raw._time ?? "", msg: raw._msg ?? "", level: raw.level ?? null, host: raw.host ?? null, service: raw.service ?? null, source: raw.source ?? null, fields };
+  return {
+    time: raw._time ?? "",
+    msg: raw._msg ?? "",
+    level: raw.level ?? null,
+    host: raw.host ?? null,
+    service: raw.service ?? null,
+    source: raw.source ?? null,
+    fields,
+  };
 }
 
 export function createVlogsClient(base: string, opts: { timeoutMs?: number } = {}) {
   const timeout = opts.timeoutMs ?? 30_000;
 
-  async function call(path: string, params: Record<string, string | number | undefined>, init: { body?: string | Buffer; type?: string; signal?: AbortSignal } = {}) {
+  async function call(
+    path: string,
+    params: Record<string, string | number | undefined>,
+    init: { body?: string | Buffer; type?: string; signal?: AbortSignal } = {},
+  ) {
     const url = new URL(path, base);
     const form = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") form.set(k, String(v));
@@ -56,16 +68,29 @@ export function createVlogsClient(base: string, opts: { timeoutMs?: number } = {
       if (init.body !== undefined) {
         for (const [k, v] of form) url.searchParams.set(k, v);
         // Without this type VictoriaLogs reads the body as a form and stores nothing, while still answering 200.
-        res = await fetch(url, { method: "POST", headers: { "content-type": init.type ?? "application/stream+json" }, body: init.body, signal: init.signal ?? AbortSignal.timeout(timeout) });
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": init.type ?? "application/stream+json" },
+          body: init.body,
+          signal: init.signal ?? AbortSignal.timeout(timeout),
+        });
       } else {
-        res = await fetch(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: form, signal: init.signal ?? AbortSignal.timeout(timeout) });
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: form,
+          signal: init.signal ?? AbortSignal.timeout(timeout),
+        });
       }
     } catch (err) {
       throw new VlogsError(503, `VictoriaLogs is unreachable: ${(err as Error).message}`);
     }
     if (!res.ok) {
       const text = (await res.text()).trim();
-      throw new VlogsError(res.status >= 500 ? 503 : 400, text.replace(/^cannot parse `query` arg \[.*?\]: /, "").slice(0, 2000) || `VictoriaLogs answered ${res.status}`);
+      throw new VlogsError(
+        res.status >= 500 ? 503 : 400,
+        text.replace(/^cannot parse `query` arg \[.*?\]: /, "").slice(0, 2000) || `VictoriaLogs answered ${res.status}`,
+      );
     }
     return res;
   }

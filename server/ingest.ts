@@ -18,7 +18,9 @@ export function parseJsonLines(body: string, now = new Date().toISOString()): En
       out.push({ time: now, msg: s, fields: {} });
       continue;
     }
-    if (Array.isArray(v)) for (const item of v) out.push(item && typeof item === "object" ? fromObject(item as Record<string, unknown>, now) : { time: now, msg: String(item), fields: {} });
+    if (Array.isArray(v))
+      for (const item of v)
+        out.push(item && typeof item === "object" ? fromObject(item as Record<string, unknown>, now) : { time: now, msg: String(item), fields: {} });
     else if (v && typeof v === "object") out.push(fromObject(v as Record<string, unknown>, now));
     else out.push({ time: now, msg: String(v), fields: {} });
   }

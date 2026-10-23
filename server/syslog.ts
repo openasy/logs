@@ -4,7 +4,32 @@ import { isIPv4, isIPv6 } from "node:net";
 import { toTime, type Entry, type Level } from "./pipeline.ts";
 
 const SEVERITY: Level[] = ["fatal", "fatal", "fatal", "error", "warn", "info", "info", "debug"];
-const FACILITY = ["kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news", "uucp", "cron", "authpriv", "ftp", "ntp", "security", "console", "solaris-cron", "local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7"];
+const FACILITY = [
+  "kern",
+  "user",
+  "mail",
+  "daemon",
+  "auth",
+  "syslog",
+  "lpr",
+  "news",
+  "uucp",
+  "cron",
+  "authpriv",
+  "ftp",
+  "ntp",
+  "security",
+  "console",
+  "solaris-cron",
+  "local0",
+  "local1",
+  "local2",
+  "local3",
+  "local4",
+  "local5",
+  "local6",
+  "local7",
+];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const nil = (v: string | undefined) => (v === undefined || v === "-" ? undefined : v);
@@ -145,7 +170,8 @@ export function parseNetwork(cidr: string): { base: bigint; bits: number } {
   const v4 = isIPv4(addr!);
   const max = v4 ? 32 : 128;
   const bits = len === undefined ? max : Number(len);
-  if (!Number.isInteger(bits) || bits < 0 || bits > max || (len !== undefined && !/^\d+$/.test(len))) throw new Error(`${cidr}: the prefix length is 0 to ${max}`);
+  if (!Number.isInteger(bits) || bits < 0 || bits > max || (len !== undefined && !/^\d+$/.test(len)))
+    throw new Error(`${cidr}: the prefix length is 0 to ${max}`);
   const total = v4 ? bits + 96 : bits;
   const mask = total === 0 ? 0n : ((1n << 128n) - 1n) ^ ((1n << BigInt(128 - total)) - 1n);
   return { base: n & mask, bits: total };

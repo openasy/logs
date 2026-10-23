@@ -1,4 +1,22 @@
-import { AppShell, BrandProvider, Button, Callout, EmptyState, KpiCard, KpiGrid, navigate, PageHeader, Panel, PRODUCT_IDS, TextField, usePath, type Column, type ProductId, useThemePreference, useAgo } from "@openasy/ui";
+import {
+  AppShell,
+  BrandProvider,
+  Button,
+  Callout,
+  EmptyState,
+  KpiCard,
+  KpiGrid,
+  navigate,
+  PageHeader,
+  Panel,
+  PRODUCT_IDS,
+  TextField,
+  usePath,
+  type Column,
+  type ProductId,
+  useThemePreference,
+  useAgo,
+} from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth } from "@openasy/auth/react";
 import { Bookmark, Bot, Cable, Eye, KeyRound, LayoutDashboard, LogIn, LogOut, Radio, Search, Server, Settings2, UserRound, Users } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
@@ -11,7 +29,21 @@ import { ViewsPage } from "./views.tsx";
 import { bytes, count, List, useApi, useData, type Call } from "./shared.tsx";
 import { useT } from "./i18n.ts";
 
-export const PAGES = ["overview", "explorer", "tail", "views", "sources", "hosts", "agents", "settings", "searches", "account", "members", "signin", "tokens"] as const;
+export const PAGES = [
+  "overview",
+  "explorer",
+  "tail",
+  "views",
+  "sources",
+  "hosts",
+  "agents",
+  "settings",
+  "searches",
+  "account",
+  "members",
+  "signin",
+  "tokens",
+] as const;
 type Page = (typeof PAGES)[number];
 type Route = { page: Page; params: URLSearchParams } | { page: "source"; id: string; params: URLSearchParams };
 
@@ -31,7 +63,14 @@ function OverviewPage({ call }: { call: Call }) {
     return (
       <>
         <PageHeader title={t("overviewPage.getStarted")} description={t("overviewPage.logsKeepsWhatYourHosts")} />
-        <EmptyState title={t("overviewPage.noLogsYet")} action={<Button variant="primary" onClick={() => navigate("/sources")}>{t("overviewPage.addASource")}</Button>}>
+        <EmptyState
+          title={t("overviewPage.noLogsYet")}
+          action={
+            <Button variant="primary" onClick={() => navigate("/sources")}>
+              {t("overviewPage.addASource")}
+            </Button>
+          }
+        >
           {t("overviewPage.addASourceForEach")}
         </EmptyState>
       </>
@@ -43,9 +82,19 @@ function OverviewPage({ call }: { call: Call }) {
       <PageHeader title={t("overviewPage.overview")} description={t("overviewPage.whatArrivesFromWhereAnd")} />
       <KpiGrid>
         <KpiCard label={t("overviewPage.linesInTheLastHour")} value={s ? count(s.linesLastHour) : "–"} href="/explorer" />
-        <KpiCard label={t("overviewPage.stored")} value={s ? bytes(s.storedBytes) : "–"} footer={s && t("overviewPage.keptDays", { retentionDays: s.retentionDays })} href="/settings" />
+        <KpiCard
+          label={t("overviewPage.stored")}
+          value={s ? bytes(s.storedBytes) : "–"}
+          footer={s && t("overviewPage.keptDays", { retentionDays: s.retentionDays })}
+          href="/settings"
+        />
         <KpiCard label={t("overviewPage.sources")} value={s ? total(s.sources) : "–"} href="/sources" />
-        <KpiCard label={t("overviewPage.hostsRead")} value={s ? `${s.hosts.ok ?? 0}/${total(s.hosts)}` : "–"} tone={notOk > 0 ? "warning" : undefined} href="/hosts" />
+        <KpiCard
+          label={t("overviewPage.hostsRead")}
+          value={s ? `${s.hosts.ok ?? 0}/${total(s.hosts)}` : "–"}
+          tone={notOk > 0 ? "warning" : undefined}
+          href="/hosts"
+        />
         <KpiCard label={t("overviewPage.viewsOverThreshold")} value={s?.alertsFiring ?? "–"} tone={s?.alertsFiring ? "danger" : undefined} href="/views" />
       </KpiGrid>
       {s && s.linesLastHour === null && (
@@ -55,7 +104,8 @@ function OverviewPage({ call }: { call: Call }) {
       )}
       <Panel title={t("overviewPage.search")}>
         <p className="m-0 text-sm">
-          {t("overviewPage.open")}{" "}<a href="/explorer">{t("overviewPage.explorer")}</a> {t("overviewPage.andWriteLogsql")}{" "}<code>service:checkout level:error</code>, <code>"connection refused"</code>, <code>host:web-1 -service:cron</code>. The{" "}
+          {t("overviewPage.open")} <a href="/explorer">{t("overviewPage.explorer")}</a> {t("overviewPage.andWriteLogsql")}{" "}
+          <code>service:checkout level:error</code>, <code>"connection refused"</code>, <code>host:web-1 -service:cron</code>. The{" "}
           <a href="https://docs.victoriametrics.com/victorialogs/logsql/" target="_blank" rel="noreferrer">
             {t("overviewPage.logsqlReference")}
           </a>{" "}
@@ -76,7 +126,10 @@ function SettingsPage({ call }: { call: Call }) {
   const save = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await call("/api/v1/settings", { method: "PATCH", body: JSON.stringify({ ...(days !== undefined && { retentionDays: Number(days) }), ...(gb !== undefined && { maxDiskGb: Number(gb) }) }) });
+      await call("/api/v1/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ ...(days !== undefined && { retentionDays: Number(days) }), ...(gb !== undefined && { maxDiskGb: Number(gb) }) }),
+      });
       setState({ tone: "success", text: t("settingsPage.savedStorageRestartedWithIt") });
       setDays(undefined);
       setGb(undefined);
@@ -90,8 +143,25 @@ function SettingsPage({ call }: { call: Call }) {
       <PageHeader title={t("settingsPage.retention")} description={t("settingsPage.howLongLinesAreKept")} />
       <Panel>
         <form onSubmit={save} className="flex flex-wrap items-end gap-3">
-          <TextField label={t("settingsPage.keepFor")} type="number" min={1} max={3650} value={days ?? String(data?.retentionDays ?? "")} onChange={(e) => setDays(e.target.value)} hint="days" disabled={!can("admin")} />
-          <TextField label={t("settingsPage.useAtMost")} type="number" min={0} value={gb ?? String(data?.maxDiskGb ?? "")} onChange={(e) => setGb(e.target.value)} hint={t("settingsPage.gb0IsUpTo")} disabled={!can("admin")} />
+          <TextField
+            label={t("settingsPage.keepFor")}
+            type="number"
+            min={1}
+            max={3650}
+            value={days ?? String(data?.retentionDays ?? "")}
+            onChange={(e) => setDays(e.target.value)}
+            hint="days"
+            disabled={!can("admin")}
+          />
+          <TextField
+            label={t("settingsPage.useAtMost")}
+            type="number"
+            min={0}
+            value={gb ?? String(data?.maxDiskGb ?? "")}
+            onChange={(e) => setGb(e.target.value)}
+            hint={t("settingsPage.gb0IsUpTo")}
+            disabled={!can("admin")}
+          />
           {can("admin") && (
             <Button type="submit" variant="primary" disabled={days === undefined && gb === undefined}>
               {t("settingsPage.save")}
@@ -100,7 +170,11 @@ function SettingsPage({ call }: { call: Call }) {
         </form>
       </Panel>
       {state && (
-        <Callout tone={state.tone} title={state.tone === "success" ? t("settingsPage.retentionChanged") : t("settingsPage.notSaved")} onDismiss={() => setState(undefined)}>
+        <Callout
+          tone={state.tone}
+          title={state.tone === "success" ? t("settingsPage.retentionChanged") : t("settingsPage.notSaved")}
+          onDismiss={() => setState(undefined)}
+        >
           {state.text}
         </Callout>
       )}
@@ -113,7 +187,13 @@ function SearchesPage({ call }: { call: Call }) {
   const t = useT();
   const { data } = useData<{ searches: SearchRecord[] }>(call, "/api/v1/searches?limit=500", 30_000);
   const cols: Column<SearchRecord>[] = [
-    { id: "at", header: t("searchesPage.when"), width: "120px", cell: (s) => <span title={new Date(s.at).toLocaleString()}>{ago(s.at)}</span>, sortValue: (s) => s.at },
+    {
+      id: "at",
+      header: t("searchesPage.when"),
+      width: "120px",
+      cell: (s) => <span title={new Date(s.at).toLocaleString()}>{ago(s.at)}</span>,
+      sortValue: (s) => s.at,
+    },
     { id: "who", header: t("searchesPage.who"), width: "240px", cell: (s) => s.actor },
     { id: "kind", header: "", width: "70px", cell: (s) => (s.kind === "tail" ? "tail" : "search") },
     { id: "query", header: t("searchesPage.query"), cell: (s) => <span className="logs-wrap font-mono text-xs">{s.query}</span> },
@@ -130,9 +210,18 @@ function SearchesPage({ call }: { call: Call }) {
 
 const ACCOUNT = {
   account: ["Account", "Your profile, password, two-step verification and where you are signed in."],
-  members: ["Members", "Who can sign in, and with which role. Viewers search and tail every line; editors also save views and set thresholds; admins also manage sources, agents, hosts, retention, members and tokens."],
-  signin: ["Sign-in", "Identity providers people can sign in with, such as OpenAsy Identity, Keycloak or Microsoft Entra ID, and which of their groups give which role."],
-  tokens: ["API tokens", "For scripts that search. Each token has one role and an expiry; the secret is shown once. Shippers use a source's ingest token instead."],
+  members: [
+    "Members",
+    "Who can sign in, and with which role. Viewers search and tail every line; editors also save views and set thresholds; admins also manage sources, agents, hosts, retention, members and tokens.",
+  ],
+  signin: [
+    "Sign-in",
+    "Identity providers people can sign in with, such as OpenAsy Identity, Keycloak or Microsoft Entra ID, and which of their groups give which role.",
+  ],
+  tokens: [
+    "API tokens",
+    "For scripts that search. Each token has one role and an expiry; the secret is shown once. Shippers use a source's ingest token instead.",
+  ],
 } as const;
 
 function Product() {
@@ -209,7 +298,11 @@ function Product() {
       ) : page === "settings" ? (
         <SettingsPage call={call} />
       ) : page === "searches" ? (
-        can("admin") ? <SearchesPage call={call} /> : <EmptyState title={t("product.adminsOnly")}>{t("product.askAnAdminOfThis")}</EmptyState>
+        can("admin") ? (
+          <SearchesPage call={call} />
+        ) : (
+          <EmptyState title={t("product.adminsOnly")}>{t("product.askAnAdminOfThis")}</EmptyState>
+        )
       ) : page === "account" || page === "members" || page === "signin" || page === "tokens" ? (
         page !== "account" && !can("admin") ? (
           <EmptyState title={t("product.adminsOnly")}>{t("product.askAnAdminOfThis")}</EmptyState>

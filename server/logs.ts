@@ -10,7 +10,17 @@ import { checkProcessors, compile, DEFAULT_PROCESSORS, MAX_MSG, PipelineError, t
 import { inNetwork, parseNetwork } from "./syslog.ts";
 import { VlogsError, type Line, type VlogsClient } from "./vlogs.ts";
 
-export type ProblemCode = "invalid-body" | "invalid-query" | "not-found" | "conflict" | "not-configured" | "invalid-json" | "invalid-token" | "version-mismatch" | "unavailable" | "internal-error";
+export type ProblemCode =
+  | "invalid-body"
+  | "invalid-query"
+  | "not-found"
+  | "conflict"
+  | "not-configured"
+  | "invalid-json"
+  | "invalid-token"
+  | "version-mismatch"
+  | "unavailable"
+  | "internal-error";
 
 export class LogsError extends Error {
   readonly status: number;
@@ -147,7 +157,15 @@ export function checkWebhookUrl(v: unknown): string {
   if (u.protocol !== "https:" && u.protocol !== "http:") throw new LogsError(422, "invalid-body", "alert.webhookUrl is an http:// or https:// address.");
   if (u.username || u.password) throw new LogsError(422, "invalid-body", "alert.webhookUrl must not hold a user or password; the webhook is signed instead.");
   const h = u.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost") || /^(127\.|0\.|169\.254\.)/.test(h) || h === "::1" || h === "::" || /^fe80:/.test(h) || /^::ffff:(127\.|169\.254\.)/.test(h)) {
+  if (
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    /^(127\.|0\.|169\.254\.)/.test(h) ||
+    h === "::1" ||
+    h === "::" ||
+    h.startsWith("fe80:") ||
+    /^::ffff:(127\.|169\.254\.)/.test(h)
+  ) {
     throw new LogsError(422, "invalid-body", "alert.webhookUrl cannot point at this host or a link-local address.");
   }
   return u.toString();
@@ -156,13 +174,27 @@ export function checkWebhookUrl(v: unknown): string {
 /** A step for the volume chart that gives about 60 bars over the range. */
 export function stepFor(ms: number): string {
   const steps: Array<[number, string]> = [
-    [10_000, "10s"], [30_000, "30s"], [60_000, "1m"], [300_000, "5m"], [900_000, "15m"], [1_800_000, "30m"],
-    [3_600_000, "1h"], [10_800_000, "3h"], [21_600_000, "6h"], [43_200_000, "12h"], [86_400_000, "1d"],
+    [10_000, "10s"],
+    [30_000, "30s"],
+    [60_000, "1m"],
+    [300_000, "5m"],
+    [900_000, "15m"],
+    [1_800_000, "30m"],
+    [3_600_000, "1h"],
+    [10_800_000, "3h"],
+    [21_600_000, "6h"],
+    [43_200_000, "12h"],
+    [86_400_000, "1d"],
   ];
   return steps.find(([s]) => ms / s <= 90)?.[1] ?? "7d";
 }
 
-export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClient, opts: { version: string; publicUrl?: string; now?: () => number; fetch?: typeof fetch }) {
+export function createLogs(
+  db: DatabaseSync,
+  keyring: Keyring,
+  vlogs: VlogsClient,
+  opts: { version: string; publicUrl?: string; now?: () => number; fetch?: typeof fetch },
+) {
   const now = opts.now ?? Date.now;
   const iso = (ms = now()) => new Date(ms).toISOString();
   const post = opts.fetch ?? fetch;
@@ -185,11 +217,13 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   function updateSettings(b: Record<string, unknown>) {
     const cur = settings();
     if (b.retentionDays !== undefined) {
-      if (typeof b.retentionDays !== "number" || !Number.isInteger(b.retentionDays) || b.retentionDays < 1 || b.retentionDays > 3650) throw bad("retentionDays is 1 to 3650.");
+      if (typeof b.retentionDays !== "number" || !Number.isInteger(b.retentionDays) || b.retentionDays < 1 || b.retentionDays > 3650)
+        throw bad("retentionDays is 1 to 3650.");
       cur.retentionDays = b.retentionDays;
     }
     if (b.maxDiskGb !== undefined) {
-      if (typeof b.maxDiskGb !== "number" || !Number.isInteger(b.maxDiskGb) || b.maxDiskGb < 0 || b.maxDiskGb > 1_000_000) throw bad("maxDiskGb is 0 (90% of the volume) or a number of gigabytes.");
+      if (typeof b.maxDiskGb !== "number" || !Number.isInteger(b.maxDiskGb) || b.maxDiskGb < 0 || b.maxDiskGb > 1_000_000)
+        throw bad("maxDiskGb is 0 (90% of the volume) or a number of gigabytes.");
       cur.maxDiskGb = b.maxDiskGb;
     }
     const up = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
@@ -269,7 +303,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     if (b.kind !== "http" && b.kind !== "syslog" && b.kind !== "ssh") throw bad("kind is http, syslog or ssh.");
     const v = sourceInput(b, b.kind, false);
     if (db.prepare("SELECT 1 FROM sources WHERE name = ?").get(v.name!)) throw new LogsError(409, "conflict", `A source named ${v.name} exists.`);
-    if (b.kind === "syslog" && !v.networks?.length) throw bad("networks: say which senders this syslog source takes, such as 10.0.0.0/8. Syslog carries no token.");
+    if (b.kind === "syslog" && !v.networks?.length)
+      throw bad("networks: say which senders this syslog source takes, such as 10.0.0.0/8. Syslog carries no token.");
     const id = randomUUID();
     const token = b.kind === "http" ? newToken() : undefined;
     db.prepare("INSERT INTO sources (id, name, kind, token_hash, networks, plain, processors, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
@@ -289,7 +324,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   function updateSource(id: string, b: Record<string, unknown>) {
     const s = requireSource(id);
     const v = sourceInput(b, s.kind, true);
-    if (v.name && v.name !== s.name && db.prepare("SELECT 1 FROM sources WHERE name = ?").get(v.name)) throw new LogsError(409, "conflict", `A source named ${v.name} exists.`);
+    if (v.name && v.name !== s.name && db.prepare("SELECT 1 FROM sources WHERE name = ?").get(v.name))
+      throw new LogsError(409, "conflict", `A source named ${v.name} exists.`);
     if (s.kind === "syslog" && v.networks && !v.networks.length) throw bad("networks: a syslog source needs at least one.");
     db.prepare("UPDATE sources SET name = ?, networks = ?, plain = ?, processors = ?, enabled = ? WHERE id = ?").run(
       v.name ?? s.name,
@@ -312,7 +348,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
 
   function deleteSource(id: string) {
     requireSource(id);
-    if (db.prepare("SELECT 1 FROM hosts WHERE source_id = ?").get(id)) throw new LogsError(409, "conflict", "Hosts send their logs through this source. Move or remove them first.");
+    if (db.prepare("SELECT 1 FROM hosts WHERE source_id = ?").get(id))
+      throw new LogsError(409, "conflict", "Hosts send their logs through this source. Move or remove them first.");
     db.prepare("DELETE FROM sources WHERE id = ?").run(id);
   }
 
@@ -367,7 +404,12 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       db.prepare("UPDATE sources SET last_error = ? WHERE id = ?").run((err as Error).message.slice(0, 500), s.id);
       return unavailable(err);
     }
-    db.prepare("UPDATE sources SET lines_in = lines_in + ?, lines_dropped = lines_dropped + ?, last_seen_at = ?, last_error = NULL WHERE id = ?").run(stored.length, dropped, iso(), s.id);
+    db.prepare("UPDATE sources SET lines_in = lines_in + ?, lines_dropped = lines_dropped + ?, last_seen_at = ?, last_error = NULL WHERE id = ?").run(
+      stored.length,
+      dropped,
+      iso(),
+      s.id,
+    );
     return { accepted: stored.length, dropped };
   }
 
@@ -380,7 +422,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       if (err instanceof PipelineError) throw bad(`processors: ${err.message}`);
       throw err;
     }
-    if (!Array.isArray(b.lines) || b.lines.length > 50 || b.lines.some((l) => typeof l !== "string" || l.length > MAX_MSG)) throw bad("lines is a list of up to 50 sample lines.");
+    if (!Array.isArray(b.lines) || b.lines.length > 50 || b.lines.some((l) => typeof l !== "string" || l.length > MAX_MSG))
+      throw bad("lines is a list of up to 50 sample lines.");
     const t = iso();
     const results = (b.lines as string[]).map((l) => {
       const { kept } = compile(processors)([{ time: t, msg: l, fields: {} }]);
@@ -435,14 +478,21 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
 
   function deleteAgent(id: string) {
     requireAgent(id);
-    if (db.prepare("SELECT 1 FROM hosts WHERE agent_id = ?").get(id)) throw new LogsError(409, "conflict", "Hosts are read by this agent. Move or remove them first.");
+    if (db.prepare("SELECT 1 FROM hosts WHERE agent_id = ?").get(id))
+      throw new LogsError(409, "conflict", "Hosts are read by this agent. Move or remove them first.");
     db.prepare("DELETE FROM agents WHERE id = ?").run(id);
   }
 
   function agentSetup(id: string) {
     const a = requireAgent(id);
     if (!a.setup || !a.ca_public_key) throw new LogsError(409, "conflict", "The agent has not enrolled yet. Start it with its enrolment token.");
-    return { agent: toAgent(a), caPublicKey: a.ca_public_key, caFingerprint: fingerprint(a.ca_public_key), keyPublicKey: a.key_public_key, ...(JSON.parse(a.setup) as Record<string, string>) };
+    return {
+      agent: toAgent(a),
+      caPublicKey: a.ca_public_key,
+      caFingerprint: fingerprint(a.ca_public_key),
+      keyPublicKey: a.key_public_key,
+      ...(JSON.parse(a.setup) as Record<string, string>),
+    };
   }
 
   function checkReport(b: Record<string, unknown>) {
@@ -451,7 +501,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     if (!isKey(b.caPublicKey)) throw bad("caPublicKey is an OpenSSH public key.");
     if (!isKey(b.keyPublicKey)) throw bad("keyPublicKey is an OpenSSH public key.");
     const s = b.setup as Record<string, unknown> | undefined;
-    if (!s || ["sshdConfig", "hostSetup", "authorizedKey"].some((k) => typeof s[k] !== "string" || (s[k] as string).length > 64_000)) throw bad("setup holds sshdConfig, hostSetup and authorizedKey.");
+    if (!s || ["sshdConfig", "hostSetup", "authorizedKey"].some((k) => typeof s[k] !== "string" || (s[k] as string).length > 64_000))
+      throw bad("setup holds sshdConfig, hostSetup and authorizedKey.");
     return {
       version: b.version,
       caPublicKey: (b.caPublicKey as string).trim(),
@@ -463,7 +514,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   function enroll(b: Record<string, unknown>) {
     const token = typeof b.token === "string" ? b.token : "";
     const a = db.prepare("SELECT * FROM agents WHERE enroll_token_hash = ?").get(sha256(token)) as AgentRow | undefined;
-    if (!a || !a.enroll_expires_at || a.enroll_expires_at <= iso()) throw new LogsError(401, "invalid-token", "The enrolment token is unknown, used or expired. Create a new one under Agents.");
+    if (!a || !a.enroll_expires_at || a.enroll_expires_at <= iso())
+      throw new LogsError(401, "invalid-token", "The enrolment token is unknown, used or expired. Create a new one under Agents.");
     const r = checkReport(b);
     const secret = `ola_${randomBytes(32).toString("base64url")}`;
     db.prepare(
@@ -494,17 +546,34 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     const r = checkReport(b);
     // ADR 0019: an agent always has the same version as its product.
     if (r.version !== opts.version) {
-      db.prepare("UPDATE agents SET version = ?, last_seen_at = ?, last_error = ? WHERE id = ?").run(r.version, iso(), `logs-agent ${r.version} does not match logs ${opts.version}`, a.id);
+      db.prepare("UPDATE agents SET version = ?, last_seen_at = ?, last_error = ? WHERE id = ?").run(
+        r.version,
+        iso(),
+        `logs-agent ${r.version} does not match logs ${opts.version}`,
+        a.id,
+      );
       throw new LogsError(409, "version-mismatch", `logs-agent ${r.version} does not match logs ${opts.version}; install logs-agent ${opts.version}`);
     }
-    if (a.ca_public_key && a.ca_public_key !== r.caPublicKey) throw new LogsError(409, "conflict", "This agent's CA changed since it enrolled. Enrol it again under Agents.");
-    db.prepare("UPDATE agents SET version = ?, key_public_key = ?, setup = ?, last_seen_at = ?, last_error = NULL WHERE id = ?").run(r.version, r.keyPublicKey, r.setup, iso(), a.id);
+    if (a.ca_public_key && a.ca_public_key !== r.caPublicKey)
+      throw new LogsError(409, "conflict", "This agent's CA changed since it enrolled. Enrol it again under Agents.");
+    db.prepare("UPDATE agents SET version = ?, key_public_key = ?, setup = ?, last_seen_at = ?, last_error = NULL WHERE id = ?").run(
+      r.version,
+      r.keyPublicKey,
+      r.setup,
+      iso(),
+      a.id,
+    );
 
     const t = now();
     const free = (h: HostRow) => !h.lease_until || Date.parse(h.lease_until) <= t;
     const hosts = (db.prepare("SELECT * FROM hosts WHERE agent_id = ?").all(a.id) as unknown as HostRow[]).filter(free);
     const keyJobs = hosts.filter((h) => h.key_requested === 1);
-    const due = hosts.filter((h) => h.key_requested === 0 && keyPinned(h) && (h.read_requested === 1 || !h.last_attempt_at || Date.parse(h.last_attempt_at) + h.interval_seconds * 1000 <= t));
+    const due = hosts.filter(
+      (h) =>
+        h.key_requested === 0 &&
+        keyPinned(h) &&
+        (h.read_requested === 1 || !h.last_attempt_at || Date.parse(h.last_attempt_at) + h.interval_seconds * 1000 <= t),
+    );
     const jobs = [...keyJobs.map((h) => ({ h, action: "host-key" as const })), ...due.map((h) => ({ h, action: "read" as const }))].slice(0, 64);
     const leaseKey = db.prepare("UPDATE hosts SET lease_until = ? WHERE id = ?");
     const leaseRead = db.prepare("UPDATE hosts SET lease_until = ?, last_attempt_at = ?, read_requested = 0 WHERE id = ?");
@@ -516,7 +585,14 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
           id: randomUUID(),
           hostId: h.id,
           action,
-          target: { address: h.address, port: h.port, user: h.ssh_user, hostKeys: JSON.parse(h.host_keys) as string[], auth: h.auth, containers: h.containers === 1 },
+          target: {
+            address: h.address,
+            port: h.port,
+            user: h.ssh_user,
+            hostKeys: JSON.parse(h.host_keys) as string[],
+            auth: h.auth,
+            containers: h.containers === 1,
+          },
           cursor: { journal: h.journal_cursor, docker: h.docker_since },
         };
       }),
@@ -531,12 +607,17 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     if (!h || h.agent_id !== a.id) throw new LogsError(404, "not-found", "No such host for this agent.");
     db.prepare("UPDATE hosts SET lease_until = NULL WHERE id = ?").run(h.id);
     const keys = b.hostKeys;
-    const keyList = Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === "string" && HOST_KEY.test(k)) ? (keys as string[]) : undefined;
+    const keyList =
+      Array.isArray(keys) && keys.length > 0 && keys.length <= 8 && keys.every((k) => typeof k === "string" && HOST_KEY.test(k))
+        ? (keys as string[])
+        : undefined;
     if (b.ok === true && keyList && b.entries === undefined) {
       // The hosts file vouches for a key with its fingerprint (ADR 0052): that key is pinned without an admin.
       const vouched = h.file_host_key ? keyList.find((k) => fingerprint(k) === h.file_host_key) : undefined;
       if (vouched) {
-        db.prepare("UPDATE hosts SET key_requested = 0, host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1 WHERE id = ?").run(JSON.stringify([vouched]), h.id);
+        db.prepare(
+          "UPDATE hosts SET key_requested = 0, host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1 WHERE id = ?",
+        ).run(JSON.stringify([vouched]), h.id);
         log("info", "host key trusted from the hosts file", { host: h.name, fingerprint: h.file_host_key });
         return { status: "accepted" };
       }
@@ -563,7 +644,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       const t = iso();
       const entries: Entry[] = raw.map((e: { time?: unknown; msg?: unknown; fields?: unknown }) => {
         const fields: Record<string, string> = {};
-        if (e.fields && typeof e.fields === "object") for (const [k, v] of Object.entries(e.fields as Record<string, unknown>)) if (typeof v === "string") fields[k] = v;
+        if (e.fields && typeof e.fields === "object")
+          for (const [k, v] of Object.entries(e.fields as Record<string, unknown>)) if (typeof v === "string") fields[k] = v;
         return { time: toTime(e.time) ?? t, msg: typeof e.msg === "string" ? e.msg : "", fields };
       });
       const cursor = (b.cursor ?? {}) as { journal?: unknown; docker?: unknown };
@@ -573,22 +655,21 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       const s = requireSource(h.source_id);
       // The host's name, not what the host calls itself: it is what the screens and Infrastructure link by.
       await ingest(s, entries, { host: h.name });
-      db.prepare("UPDATE hosts SET status = 'ok', status_detail = NULL, unreadable = ?, journal_cursor = ?, docker_since = ?, lines_in = lines_in + ?, last_success_at = ?, read_requested = ? WHERE id = ?").run(
-        JSON.stringify(unreadable),
-        journal,
-        docker,
-        entries.length,
-        t,
-        b.more === true ? 1 : 0,
-        h.id,
-      );
+      db.prepare(
+        "UPDATE hosts SET status = 'ok', status_detail = NULL, unreadable = ?, journal_cursor = ?, docker_since = ?, lines_in = lines_in + ?, last_success_at = ?, read_requested = ? WHERE id = ?",
+      ).run(JSON.stringify(unreadable), journal, docker, entries.length, t, b.more === true ? 1 : 0, h.id);
       return { status: "accepted" };
     }
     const e = b.error as { kind?: unknown; message?: unknown } | undefined;
-    if (b.ok !== false || !e || typeof e.kind !== "string" || !FAILURES.has(e.kind) || typeof e.message !== "string") throw bad("Expected entries, hostKeys, or an error with kind and message.");
+    if (b.ok !== false || !e || typeof e.kind !== "string" || !FAILURES.has(e.kind) || typeof e.message !== "string")
+      throw bad("Expected entries, hostKeys, or an error with kind and message.");
     const message = e.message.slice(0, 1000);
     if (e.kind === "host-key-changed") {
-      db.prepare("UPDATE hosts SET status = 'host-key-changed', status_detail = ?, pending_host_keys = ? WHERE id = ?").run("The host key changed. Check the host, then accept the new key.", JSON.stringify(keyList ?? []), h.id);
+      db.prepare("UPDATE hosts SET status = 'host-key-changed', status_detail = ?, pending_host_keys = ? WHERE id = ?").run(
+        "The host key changed. Check the host, then accept the new key.",
+        JSON.stringify(keyList ?? []),
+        h.id,
+      );
     } else {
       db.prepare("UPDATE hosts SET status = ?, status_detail = ? WHERE id = ?").run(e.kind === "host-key-unknown" ? "unreachable" : e.kind, message, h.id);
     }
@@ -625,7 +706,17 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   }
 
   function hostInput(b: Record<string, unknown>, partial: boolean) {
-    const out: Partial<{ name: string; agentId: string; sourceId: string; address: string; port: number; user: string; auth: HostRow["auth"]; containers: boolean; intervalSeconds: number }> = {};
+    const out: Partial<{
+      name: string;
+      agentId: string;
+      sourceId: string;
+      address: string;
+      port: number;
+      user: string;
+      auth: HostRow["auth"];
+      containers: boolean;
+      intervalSeconds: number;
+    }> = {};
     if (b.name !== undefined || !partial) {
       if (typeof b.name !== "string" || !NAME.test(b.name)) throw bad("name is letters, digits, dots, dashes and underscores, up to 63.");
       out.name = b.name;
@@ -660,7 +751,8 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       out.containers = b.containers;
     }
     if (b.intervalSeconds !== undefined) {
-      if (typeof b.intervalSeconds !== "number" || !Number.isInteger(b.intervalSeconds) || b.intervalSeconds < 15 || b.intervalSeconds > 3600) throw bad("intervalSeconds is 15 to 3600.");
+      if (typeof b.intervalSeconds !== "number" || !Number.isInteger(b.intervalSeconds) || b.intervalSeconds < 15 || b.intervalSeconds > 3600)
+        throw bad("intervalSeconds is 15 to 3600.");
       out.intervalSeconds = b.intervalSeconds;
     }
     return out;
@@ -685,7 +777,9 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     if (db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name!)) throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
     const sourceId = v.sourceId ?? defaultSshSource();
     const id = randomUUID();
-    db.prepare("INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+    db.prepare(
+      "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
       id,
       v.name!,
       agentId,
@@ -704,10 +798,13 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   function updateHost(id: string, b: Record<string, unknown>) {
     const h = fromFile(requireHost(id), "Change it there.");
     const v = hostInput(b, true);
-    if (v.name && v.name !== h.name && db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name)) throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
+    if (v.name && v.name !== h.name && db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name))
+      throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
     const agentId = v.agentId ?? h.agent_id;
     const moved = (v.address !== undefined && v.address !== h.address) || (v.port !== undefined && v.port !== h.port) || agentId !== h.agent_id;
-    db.prepare("UPDATE hosts SET name = ?, agent_id = ?, source_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, interval_seconds = ? WHERE id = ?").run(
+    db.prepare(
+      "UPDATE hosts SET name = ?, agent_id = ?, source_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, interval_seconds = ? WHERE id = ?",
+    ).run(
       v.name ?? h.name,
       agentId,
       v.sourceId ?? h.source_id,
@@ -720,7 +817,10 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       id,
     );
     // A new address, or another agent, is a new trust decision: the key must be checked again.
-    if (moved) db.prepare("UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?").run(id);
+    if (moved)
+      db.prepare(
+        "UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?",
+      ).run(id);
     return toHost(requireHost(id));
   }
 
@@ -735,7 +835,9 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     if (h.file_host_key) fromFile(h, "Its key is the one hostKey names there; change hostKey to trust another.");
     const key = (JSON.parse(h.pending_host_keys) as string[]).find((k) => fingerprint(k) === fp);
     if (typeof fp !== "string" || !key) throw bad("fingerprint must be one of the pending host keys, as SHA256:...");
-    db.prepare("UPDATE hosts SET host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1, lease_until = NULL WHERE id = ?").run(JSON.stringify([key]), id);
+    db.prepare(
+      "UPDATE hosts SET host_keys = ?, pending_host_keys = '[]', status = 'pending', status_detail = NULL, read_requested = 1, lease_until = NULL WHERE id = ?",
+    ).run(JSON.stringify([key]), id);
     return toHost(requireHost(id));
   }
 
@@ -769,7 +871,12 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
         agentId = agents.find((x) => x.name === e.agent)?.id;
         if (!agentId) warnings.push(`${e.name}: no agent is named ${e.agent}; it is added once one is.`);
       } else if (agents.length === 1) agentId = agents[0]!.id;
-      else warnings.push(agents.length ? `${e.name}: name the agent that reaches it with agent:, as there are ${agents.length}.` : `${e.name}: it is added once an agent is, under Agents.`);
+      else
+        warnings.push(
+          agents.length
+            ? `${e.name}: name the agent that reaches it with agent:, as there are ${agents.length}.`
+            : `${e.name}: it is added once an agent is, under Agents.`,
+        );
       if (!agentId) continue;
       const h = db.prepare("SELECT * FROM hosts WHERE name = ?").get(e.name) as HostRow | undefined;
       if (h?.origin === "ui") {
@@ -785,10 +892,23 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       const pinned = JSON.parse(h.host_keys) as string[];
       const moved = e.address !== h.address || e.port !== h.port || agentId !== h.agent_id;
       const vouchesOther = !!e.hostKey && e.hostKey !== h.file_host_key && pinned.length > 0 && !pinned.some((k) => fingerprint(k) === e.hostKey);
-      db.prepare("UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, file_host_key = ? WHERE id = ?").run(agentId, e.address, e.port, e.user, e.auth, e.containers ? 1 : 0, e.hostKey, h.id);
-      if (moved || vouchesOther) db.prepare("UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?").run(h.id);
+      db.prepare("UPDATE hosts SET agent_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, file_host_key = ? WHERE id = ?").run(
+        agentId,
+        e.address,
+        e.port,
+        e.user,
+        e.auth,
+        e.containers ? 1 : 0,
+        e.hostKey,
+        h.id,
+      );
+      if (moved || vouchesOther)
+        db.prepare(
+          "UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?",
+        ).run(h.id);
       // A hostKey given now for a host whose key is not pinned yet: ask for the key again, to trust it if it matches.
-      else if (e.hostKey && e.hostKey !== h.file_host_key && !pinned.length) db.prepare("UPDATE hosts SET key_requested = 1, lease_until = NULL WHERE id = ?").run(h.id);
+      else if (e.hostKey && e.hostKey !== h.file_host_key && !pinned.length)
+        db.prepare("UPDATE hosts SET key_requested = 1, lease_until = NULL WHERE id = ?").run(h.id);
     }
     // Hosts that left the file go; lines already stored stay until retention removes them.
     const named = new Set(entries.filter((e) => !e.jump).map((e) => e.name));
@@ -871,7 +991,9 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
   }
 
   function searches(p: { limit: number; cursor?: number }) {
-    const rows = db.prepare(`SELECT * FROM searches ${p.cursor ? "WHERE id < ?" : ""} ORDER BY id DESC LIMIT ?`).all(...(p.cursor ? [p.cursor, p.limit + 1] : [p.limit + 1])) as Array<{ id: number; at: string; actor: string; kind: string; query: string }>;
+    const rows = db
+      .prepare(`SELECT * FROM searches ${p.cursor ? "WHERE id < ?" : ""} ORDER BY id DESC LIMIT ?`)
+      .all(...(p.cursor ? [p.cursor, p.limit + 1] : [p.limit + 1])) as Array<{ id: number; at: string; actor: string; kind: string; query: string }>;
     const page = rows.slice(0, p.limit);
     return { searches: page, ...(rows.length > p.limit && { nextCursor: String(page.at(-1)!.id) }) };
   }
@@ -930,8 +1052,10 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       else {
         const a = b.alert as Record<string, unknown>;
         if (!a || typeof a !== "object") throw bad("alert is null or an object with threshold, windowMinutes and webhookUrl.");
-        if (typeof a.threshold !== "number" || !Number.isInteger(a.threshold) || a.threshold < 0) throw bad("alert.threshold is a whole number: the alert fires when more lines than this match.");
-        if (typeof a.windowMinutes !== "number" || !Number.isInteger(a.windowMinutes) || a.windowMinutes < 1 || a.windowMinutes > 1440) throw bad("alert.windowMinutes is 1 to 1440.");
+        if (typeof a.threshold !== "number" || !Number.isInteger(a.threshold) || a.threshold < 0)
+          throw bad("alert.threshold is a whole number: the alert fires when more lines than this match.");
+        if (typeof a.windowMinutes !== "number" || !Number.isInteger(a.windowMinutes) || a.windowMinutes < 1 || a.windowMinutes > 1440)
+          throw bad("alert.windowMinutes is 1 to 1440.");
         out.alert = { threshold: a.threshold, windowMinutes: a.windowMinutes, webhookUrl: checkWebhookUrl(a.webhookUrl) };
       }
     }
@@ -945,7 +1069,20 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     const secret = v.alert ? `whsec_${randomBytes(24).toString("base64")}` : undefined;
     db.prepare(
       "INSERT INTO views (id, name, query, owner_id, owner_name, shared, alert_threshold, alert_window_minutes, alert_webhook_url, alert_secret_sealed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(id, v.name!, v.query!, actor.id, actor.name, v.shared === false ? 0 : 1, v.alert?.threshold ?? null, v.alert?.windowMinutes ?? null, v.alert?.webhookUrl ?? null, secret ? keyring.seal(secret) : null, iso(), iso());
+    ).run(
+      id,
+      v.name!,
+      v.query!,
+      actor.id,
+      actor.name,
+      v.shared === false ? 0 : 1,
+      v.alert?.threshold ?? null,
+      v.alert?.windowMinutes ?? null,
+      v.alert?.webhookUrl ?? null,
+      secret ? keyring.seal(secret) : null,
+      iso(),
+      iso(),
+    );
     return { view: toView(viewRow(id)!), ...(secret && { webhookSecret: secret }) };
   }
 
@@ -1005,7 +1142,13 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     const secret = keyring.open(v.alert_secret_sealed!).toString("utf8");
     const res = await post(v.alert_webhook_url!, {
       method: "POST",
-      headers: { "content-type": "application/json", "webhook-id": id, "webhook-timestamp": String(ts), "webhook-signature": sign(secret, id, ts, body), "user-agent": `openasy-logs/${opts.version}` },
+      headers: {
+        "content-type": "application/json",
+        "webhook-id": id,
+        "webhook-timestamp": String(ts),
+        "webhook-signature": sign(secret, id, ts, body),
+        "user-agent": `openasy-logs/${opts.version}`,
+      },
       body,
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
@@ -1023,7 +1166,11 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
         const res = await vlogs.stats(`${v.query} | stats count() n`, { start: iso(end - v.alert_window_minutes! * 60_000), end: iso(end) });
         count = Number(res[0]?.n ?? 0);
       } catch (err) {
-        db.prepare("UPDATE views SET alert_state = 'error', alert_last_error = ?, alert_last_checked_at = ? WHERE id = ?").run((err as Error).message.slice(0, 500), iso(), v.id);
+        db.prepare("UPDATE views SET alert_state = 'error', alert_last_error = ?, alert_last_checked_at = ? WHERE id = ?").run(
+          (err as Error).message.slice(0, 500),
+          iso(),
+          v.id,
+        );
         continue;
       }
       const firing = count > v.alert_threshold!;
@@ -1040,21 +1187,17 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
       }
       // A failed delivery is tried again at the next check: the state only moves once the webhook took it.
       const state = error ? v.alert_state : firing ? "firing" : "ok";
-      db.prepare("UPDATE views SET alert_state = ?, alert_last_count = ?, alert_last_checked_at = ?, alert_last_error = ?, alert_last_fired_at = ? WHERE id = ?").run(
-        state === "error" ? "ok" : state,
-        count,
-        iso(),
-        error,
-        firing && !was && !error ? iso() : v.alert_last_fired_at,
-        v.id,
-      );
+      db.prepare(
+        "UPDATE views SET alert_state = ?, alert_last_count = ?, alert_last_checked_at = ?, alert_last_error = ?, alert_last_fired_at = ? WHERE id = ?",
+      ).run(state === "error" ? "ok" : state, count, iso(), error, firing && !was && !error ? iso() : v.alert_last_fired_at, v.id);
     }
   }
 
   // ---- Overview ---------------------------------------------------------------------------------------------------
 
   async function summary() {
-    const count = (sql: string) => Object.fromEntries((db.prepare(sql).all() as Array<{ k: string; n: number }>).map((r) => [r.k, r.n])) as Record<string, number>;
+    const count = (sql: string) =>
+      Object.fromEntries((db.prepare(sql).all() as Array<{ k: string; n: number }>).map((r) => [r.k, r.n])) as Record<string, number>;
     const agents = (db.prepare("SELECT * FROM agents").all() as unknown as AgentRow[]).map(toAgent);
     let lastHour: number | null = null;
     let usage: { bytes: number; rows: number } | null = null;
@@ -1066,7 +1209,10 @@ export function createLogs(db: DatabaseSync, keyring: Keyring, vlogs: VlogsClien
     }
     return {
       sources: count("SELECT kind AS k, COUNT(*) AS n FROM sources GROUP BY kind"),
-      agents: Object.fromEntries([...new Set(agents.map((a) => a.status))].map((s) => [s, agents.filter((a) => a.status === s).length])) as Record<string, number>,
+      agents: Object.fromEntries([...new Set(agents.map((a) => a.status))].map((s) => [s, agents.filter((a) => a.status === s).length])) as Record<
+        string,
+        number
+      >,
       hosts: count("SELECT status AS k, COUNT(*) AS n FROM hosts GROUP BY status"),
       linesLastHour: lastHour,
       storedBytes: usage?.bytes ?? null,

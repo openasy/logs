@@ -5,11 +5,23 @@ const NOW = new Date("2026-10-21T10:00:00Z");
 
 describe("parseSyslog", () => {
   it("reads RFC 5424 with structured data", () => {
-    const e = parseSyslog('<165>1 2026-10-21T09:59:58.123Z web-1 nginx 4242 ID47 [exampleSDID@32473 iut="3" eventSource="Application"] ﻿request timed out', NOW);
+    const e = parseSyslog(
+      '<165>1 2026-10-21T09:59:58.123Z web-1 nginx 4242 ID47 [exampleSDID@32473 iut="3" eventSource="Application"] ﻿request timed out',
+      NOW,
+    );
     expect(e).toEqual({
       time: "2026-10-21T09:59:58.123Z",
       msg: "request timed out",
-      fields: { level: "info", "syslog.facility": "local4", host: "web-1", service: "nginx", "syslog.procid": "4242", "syslog.msgid": "ID47", "exampleSDID.iut": "3", "exampleSDID.eventSource": "Application" },
+      fields: {
+        level: "info",
+        "syslog.facility": "local4",
+        host: "web-1",
+        service: "nginx",
+        "syslog.procid": "4242",
+        "syslog.msgid": "ID47",
+        "exampleSDID.iut": "3",
+        "exampleSDID.eventSource": "Application",
+      },
     });
   });
 
@@ -29,7 +41,12 @@ describe("parseSyslog", () => {
   });
 
   it("reads RFC 3164 without a host name", () => {
-    expect(parseSyslog("<13>Oct 21 09:59:01 cron[77]: job done", NOW).fields).toEqual({ level: "info", "syslog.facility": "user", service: "cron", "syslog.procid": "77" });
+    expect(parseSyslog("<13>Oct 21 09:59:01 cron[77]: job done", NOW).fields).toEqual({
+      level: "info",
+      "syslog.facility": "user",
+      service: "cron",
+      "syslog.procid": "77",
+    });
   });
 
   it("keeps whatever is not syslog as the message", () => {

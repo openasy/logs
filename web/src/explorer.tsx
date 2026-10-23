@@ -1,4 +1,24 @@
-import { Button, Callout, Checkbox, Dialog, EntityChip, FacetFilter, FilterBar, LOG_LEVEL_META, navigate, PageHeader, Panel, QueryBar, StackedBarChart, StatusBadge, TextField, TimeRangePicker, TONE_COLORS, toLogLevel, cn } from "@openasy/ui";
+import {
+  Button,
+  Callout,
+  Checkbox,
+  Dialog,
+  EntityChip,
+  FacetFilter,
+  FilterBar,
+  LOG_LEVEL_META,
+  navigate,
+  PageHeader,
+  Panel,
+  QueryBar,
+  StackedBarChart,
+  StatusBadge,
+  TextField,
+  TimeRangePicker,
+  TONE_COLORS,
+  toLogLevel,
+  cn,
+} from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
 import { Bookmark, ChevronRight, Radio } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -29,7 +49,10 @@ const ROW = "grid w-full grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] it
 export function LogHeader() {
   const t = useT();
   return (
-    <div aria-hidden className="grid grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] gap-2 border-b border-line bg-canvas px-3 py-1.5 text-2xs font-medium tracking-wider text-fg-muted uppercase">
+    <div
+      aria-hidden
+      className="grid grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] gap-2 border-b border-line bg-canvas px-3 py-1.5 text-2xs font-medium tracking-wider text-fg-muted uppercase"
+    >
       <span />
       <span>{t("logHeader.time")}</span>
       <span>{t("logHeader.level")}</span>
@@ -41,7 +64,19 @@ export function LogHeader() {
 }
 
 /** One line; opened, its fields, each of which adds itself as a filter. */
-export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id: string; open: boolean; onToggle: () => void; onFilter?: (field: string, value: string) => void }) {
+export function LogRow({
+  line,
+  id,
+  open,
+  onToggle,
+  onFilter,
+}: {
+  line: Line;
+  id: string;
+  open: boolean;
+  onToggle: () => void;
+  onFilter?: (field: string, value: string) => void;
+}) {
   const t = useT();
   const detailId = `log-detail-${id}`;
   const fields: Array<[string, string]> = [
@@ -61,7 +96,12 @@ export function LogRow({ line, id, open, onToggle, onFilter }: { line: Line; id:
         <span className="truncate font-mono text-xs text-fg">{line.msg}</span>
       </button>
       {open && (
-        <div id={detailId} role="region" aria-label={t("logRow.logDetails", { time: line.time })} className="grid gap-3 border-t border-subtle px-3 py-2.5 pl-8 lg:grid-cols-[minmax(0,1fr)_240px]">
+        <div
+          id={detailId}
+          role="region"
+          aria-label={t("logRow.logDetails", { time: line.time })}
+          className="grid gap-3 border-t border-subtle px-3 py-2.5 pl-8 lg:grid-cols-[minmax(0,1fr)_240px]"
+        >
           <div className="flex min-w-0 flex-col gap-2">
             <p className="logs-msg m-0 font-mono text-xs text-fg">{line.msg}</p>
             <dl className="grid grid-cols-[160px_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-xs">
@@ -166,7 +206,11 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
   }, [full, range, at]);
   const search = useData<Search>(call, `/api/v1/search?${qs}&limit=500`, 0);
   const volume = useData<Volume>(call, `/api/v1/volume?${qs}`, 0);
-  const facets = useData<Facets>(call, `/api/v1/facets?${new URLSearchParams({ query, start: new URLSearchParams(qs).get("start")!, end: new URLSearchParams(qs).get("end")! })}`, 0);
+  const facets = useData<Facets>(
+    call,
+    `/api/v1/facets?${new URLSearchParams({ query, start: new URLSearchParams(qs).get("start")!, end: new URLSearchParams(qs).get("end")! })}`,
+    0,
+  );
 
   const submit = (q: string) => {
     setQuery(q.trim() || "*");
@@ -179,7 +223,9 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
     submit(next);
   };
   const facetOf = (f: string) => facets.data?.fields.find((x) => x.field === f)?.values ?? [];
-  const levels = [...(volume.data?.series ?? [])].sort((a, b) => (LOG_LEVEL_META[toLogLevel(b.level)]?.rank ?? -1) - (LOG_LEVEL_META[toLogLevel(a.level)]?.rank ?? -1));
+  const levels = [...(volume.data?.series ?? [])].sort(
+    (a, b) => (LOG_LEVEL_META[toLogLevel(b.level)]?.rank ?? -1) - (LOG_LEVEL_META[toLogLevel(a.level)]?.rank ?? -1),
+  );
   const total = levels.reduce((n, s) => n + s.total, 0);
   const anyPicked = Object.values(picked).some((v) => v.length);
 
@@ -202,7 +248,14 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
         }
       >
         <div className="flex flex-wrap items-center gap-1.5">
-          <QueryBar value={draft} onChange={setDraft} onSubmit={submit} label={msg("explorerPage.logQuery")} placeholder={msg("explorerPage.serviceCheckoutLevelErrorTimeout")} className="min-w-0 grow" />
+          <QueryBar
+            value={draft}
+            onChange={setDraft}
+            onSubmit={submit}
+            label={msg("explorerPage.logQuery")}
+            placeholder={msg("explorerPage.serviceCheckoutLevelErrorTimeout")}
+            className="min-w-0 grow"
+          />
           <TimeRangePicker
             value={range}
             onChange={(r) => {
@@ -225,7 +278,8 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
       )}
       {saved && (
         <Callout tone="success" title={msg("explorerPage.savedAs", { name: saved.name })} onDismiss={() => setSaved(undefined)}>
-          {msg("explorerPage.findItUnder")}{" "}<a href="/views">{msg("explorerPage.savedViews")}</a>{msg("explorerPage.whereAThresholdCanAlso")}
+          {msg("explorerPage.findItUnder")} <a href="/views">{msg("explorerPage.savedViews")}</a>
+          {msg("explorerPage.whereAThresholdCanAlso")}
         </Callout>
       )}
       <FilterBar onClear={anyPicked ? () => setPicked({}) : undefined}>
@@ -250,7 +304,9 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
           <StackedBarChart
             label={msg("explorerPage.linesOverTimeByLevel")}
             categories={volume.data.times.map((t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }))}
-            segments={[...levels].reverse().map((s) => ({ id: s.level, name: s.level, color: TONE_COLORS[LOG_LEVEL_META[toLogLevel(s.level)]?.tone ?? "neutral"] }))}
+            segments={[...levels]
+              .reverse()
+              .map((s) => ({ id: s.level, name: s.level, color: TONE_COLORS[LOG_LEVEL_META[toLogLevel(s.level)]?.tone ?? "neutral"] }))}
             values={volume.data.times.map((_, i) => [...levels].reverse().map((s) => s.values[i] ?? 0))}
             height={120}
             xTicks={6}
@@ -270,7 +326,14 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
             <LogHeader />
             <ul aria-label={msg("explorerPage.logLines")} className="m-0 flex list-none flex-col p-0">
               {(search.data?.lines ?? []).map((l, i) => (
-                <LogRow key={`${l.time}-${i}`} id={String(i)} line={l} open={open === i} onToggle={() => setOpen((o) => (o === i ? null : i))} onFilter={addFilter} />
+                <LogRow
+                  key={`${l.time}-${i}`}
+                  id={String(i)}
+                  line={l}
+                  open={open === i}
+                  onToggle={() => setOpen((o) => (o === i ? null : i))}
+                  onFilter={addFilter}
+                />
               ))}
             </ul>
             {search.data?.lines.length === 0 && <p className="px-3 py-8 text-center text-sm text-fg-muted">{msg("explorerPage.noLinesMatchWidenThe")}</p>}

@@ -35,7 +35,8 @@ export class PipelineError extends Error {}
 
 /** Checks a regular expression and returns it as written. */
 function regex(pattern: unknown, what: string): string {
-  if (typeof pattern !== "string" || !pattern || pattern.length > MAX_PATTERN) throw new PipelineError(`${what}: pattern is a regular expression of up to ${MAX_PATTERN} characters.`);
+  if (typeof pattern !== "string" || !pattern || pattern.length > MAX_PATTERN)
+    throw new PipelineError(`${what}: pattern is a regular expression of up to ${MAX_PATTERN} characters.`);
   try {
     new RegExp(pattern);
   } catch (err) {
@@ -45,7 +46,8 @@ function regex(pattern: unknown, what: string): string {
 }
 
 function field(name: unknown, what: string): string {
-  if (typeof name !== "string" || !FIELD.test(name)) throw new PipelineError(`${what}: field is a name such as service or http.status, starting with a letter.`);
+  if (typeof name !== "string" || !FIELD.test(name))
+    throw new PipelineError(`${what}: field is a name such as service or http.status, starting with a letter.`);
   return name;
 }
 
@@ -69,13 +71,15 @@ export function checkProcessors(raw: unknown): Processor[] {
         return { type: "map-level", ...(o.field !== undefined && { field: field(o.field, what) }) };
       case "mask": {
         const pattern = regex(o.pattern, what);
-        if (o.replacement !== undefined && (typeof o.replacement !== "string" || o.replacement.length > 64)) throw new PipelineError(`${what}: replacement is up to 64 characters.`);
+        if (o.replacement !== undefined && (typeof o.replacement !== "string" || o.replacement.length > 64))
+          throw new PipelineError(`${what}: replacement is up to 64 characters.`);
         return { type: "mask", pattern, ...(o.replacement !== undefined && { replacement: o.replacement as string }) };
       }
       case "drop":
         return { type: "drop", field: field(o.field, what), pattern: regex(o.pattern, what) };
       case "sample": {
-        if (typeof o.percent !== "number" || !Number.isInteger(o.percent) || o.percent < 1 || o.percent > 99) throw new PipelineError(`${what}: percent is 1 to 99, the share of matching lines to keep.`);
+        if (typeof o.percent !== "number" || !Number.isInteger(o.percent) || o.percent < 1 || o.percent > 99)
+          throw new PipelineError(`${what}: percent is 1 to 99, the share of matching lines to keep.`);
         return { type: "sample", field: field(o.field, what), pattern: regex(o.pattern, what), percent: o.percent };
       }
       case "set":
@@ -89,12 +93,32 @@ export function checkProcessors(raw: unknown): Processor[] {
 
 /** Syslog severities 0 to 7, and the words programs use. */
 const LEVEL_WORDS: Record<string, Level> = {
-  emerg: "fatal", emergency: "fatal", panic: "fatal", alert: "fatal", crit: "fatal", critical: "fatal", fatal: "fatal",
-  err: "error", error: "error", eror: "error", e: "error",
-  warn: "warn", warning: "warn", w: "warn",
-  notice: "info", info: "info", information: "info", informational: "info", i: "info",
-  debug: "debug", dbug: "debug", d: "debug",
-  trace: "trace", trce: "trace", t: "trace", verbose: "trace",
+  emerg: "fatal",
+  emergency: "fatal",
+  panic: "fatal",
+  alert: "fatal",
+  crit: "fatal",
+  critical: "fatal",
+  fatal: "fatal",
+  err: "error",
+  error: "error",
+  eror: "error",
+  e: "error",
+  warn: "warn",
+  warning: "warn",
+  w: "warn",
+  notice: "info",
+  info: "info",
+  information: "info",
+  informational: "info",
+  i: "info",
+  debug: "debug",
+  dbug: "debug",
+  d: "debug",
+  trace: "trace",
+  trce: "trace",
+  t: "trace",
+  verbose: "trace",
 };
 const SYSLOG_LEVELS: Level[] = ["fatal", "fatal", "fatal", "error", "warn", "info", "info", "debug"];
 
@@ -256,10 +280,18 @@ export function compile(processors: Processor[], random: () => number = Math.ran
       case "mask": {
         const re = new RegExp(p.pattern, "g");
         const replacement = p.replacement ?? "***";
-        return (e: Entry): Entry | null => ({ ...e, msg: e.msg.replace(re, replacement), fields: Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, v.replace(re, replacement)])) });
+        return (e: Entry): Entry | null => ({
+          ...e,
+          msg: e.msg.replace(re, replacement),
+          fields: Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, v.replace(re, replacement)])),
+        });
       }
       case "mask-secrets":
-        return (e: Entry): Entry | null => ({ ...e, msg: maskSecrets(e.msg), fields: Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, maskSecrets(v)])) });
+        return (e: Entry): Entry | null => ({
+          ...e,
+          msg: maskSecrets(e.msg),
+          fields: Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, maskSecrets(v)])),
+        });
       case "drop": {
         const re = new RegExp(p.pattern);
         return (e: Entry): Entry | null => {

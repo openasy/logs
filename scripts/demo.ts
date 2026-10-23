@@ -19,9 +19,18 @@ if (!token) {
 const SERVICES = ["checkout", "orders-api", "payments", "nginx", "postgres"];
 const HOSTS = ["web-1", "web-2", "api-1", "db-1"];
 const MESSAGES: Record<string, string[]> = {
-  error: ["upstream timeout after 5000ms calling payments POST /v2/charge", "pq: remaining connection slots are reserved", "payment failed for order 4211: card declined"],
+  error: [
+    "upstream timeout after 5000ms calling payments POST /v2/charge",
+    "pq: remaining connection slots are reserved",
+    "payment failed for order 4211: card declined",
+  ],
   WARNING: ["slow request GET /v1/orders?status=pending took 2841ms", "connection pool saturated: 50/50 in use, 37 waiting"],
-  info: ["POST /v1/orders 201 in 84ms", "GET /v1/orders/ord_9f2a 200 in 31ms", "invoice batch processed: 1,284 invoices", "connected to db with password=hunter22"],
+  info: [
+    "POST /v1/orders 201 in 84ms",
+    "GET /v1/orders/ord_9f2a 200 in 31ms",
+    "invoice batch processed: 1,284 invoices",
+    "connected to db with password=hunter22",
+  ],
   debug: ["retrying job inv_44102 (attempt 2/5) after 800ms"],
 };
 
@@ -30,11 +39,23 @@ function line(at: number) {
   n++;
   const level = n % 23 === 0 ? "error" : n % 7 === 0 ? "WARNING" : n % 11 === 0 ? "debug" : "info";
   const list = MESSAGES[level]!;
-  return JSON.stringify({ time: new Date(at).toISOString(), level, msg: list[n % list.length], service: SERVICES[n % SERVICES.length], host: HOSTS[n % HOSTS.length], trace_id: (0x4bf92f35 + n).toString(16), http: { status: level === "error" ? 502 : 200 } });
+  return JSON.stringify({
+    time: new Date(at).toISOString(),
+    level,
+    msg: list[n % list.length],
+    service: SERVICES[n % SERVICES.length],
+    host: HOSTS[n % HOSTS.length],
+    trace_id: (0x4bf92f35 + n).toString(16),
+    http: { status: level === "error" ? 502 : 200 },
+  });
 }
 
 async function send(lines: string[]) {
-  const res = await fetch(`${base}/api/v1/ingest/jsonline`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/x-ndjson" }, body: lines.join("\n") });
+  const res = await fetch(`${base}/api/v1/ingest/jsonline`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/x-ndjson" },
+    body: lines.join("\n"),
+  });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return (await res.json()) as { accepted: number; dropped: number };
 }

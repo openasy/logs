@@ -41,11 +41,37 @@ function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; age
         </>
       }
     >
-      <TextField label={t("addHost.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder="web-1" hint={t("addHost.itsLinesCarryItAs")} error={error} />
+      <TextField
+        label={t("addHost.name")}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="web-1"
+        hint={t("addHost.itsLinesCarryItAs")}
+        error={error}
+      />
       <TextField label={t("addHost.address")} mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
-      {agents.length > 1 && <SelectField label={t("addHost.readBy")} value={agentId} onChange={(e) => setAgentId(e.target.value)} options={agents.map((a) => ({ value: a.id, label: a.name }))} />}
-      {sources.length > 1 && <SelectField label={t("addHost.pipelineOf")} value={sourceId} onChange={(e) => setSourceId(e.target.value)} options={sources.map((s) => ({ value: s.id, label: s.name }))} />}
-      <Checkbox label={t("addHost.alsoReadContainerLogs")} description={t("addHost.throughTheHostSDocker")} checked={containers} onChange={(e) => setContainers(e.target.checked)} />
+      {agents.length > 1 && (
+        <SelectField
+          label={t("addHost.readBy")}
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          options={agents.map((a) => ({ value: a.id, label: a.name }))}
+        />
+      )}
+      {sources.length > 1 && (
+        <SelectField
+          label={t("addHost.pipelineOf")}
+          value={sourceId}
+          onChange={(e) => setSourceId(e.target.value)}
+          options={sources.map((s) => ({ value: s.id, label: s.name }))}
+        />
+      )}
+      <Checkbox
+        label={t("addHost.alsoReadContainerLogs")}
+        description={t("addHost.throughTheHostSDocker")}
+        checked={containers}
+        onChange={(e) => setContainers(e.target.checked)}
+      />
     </Dialog>
   );
 }
@@ -57,19 +83,30 @@ function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () =
   const key = host.pendingHostKeys[0];
   if (!key) return null;
   return (
-    <Callout tone={host.status === "host-key-changed" ? "danger" : "warning"} title={host.status === "host-key-changed" ? t("keyCheck.presentsAnotherKey", { name: host.name }) : t("keyCheck.checkTheKeyOf", { name: host.name })}>
+    <Callout
+      tone={host.status === "host-key-changed" ? "danger" : "warning"}
+      title={host.status === "host-key-changed" ? t("keyCheck.presentsAnotherKey", { name: host.name }) : t("keyCheck.checkTheKeyOf", { name: host.name })}
+    >
       <span className="flex flex-col gap-2">
         <span>{t("keyCheck.onTheHostThisMust")}</span>
-        <Code label={t("keyCheck.commandToRunOnThe")}>{`ssh-keygen -lf /etc/ssh/ssh_host_${key.type.includes("ed25519") ? "ed25519" : key.type.startsWith("ecdsa") ? "ecdsa" : "rsa"}_key.pub`}</Code>
+        <Code
+          label={t("keyCheck.commandToRunOnThe")}
+        >{`ssh-keygen -lf /etc/ssh/ssh_host_${key.type.includes("ed25519") ? "ed25519" : key.type.startsWith("ecdsa") ? "ecdsa" : "rsa"}_key.pub`}</Code>
         <span className="logs-wrap font-mono text-xs">{key.fingerprint}</span>
         {host.fileHostKey && (
           <span>
-            {t("keyCheck.theHostsFileTrusts")}{" "}<span className="logs-wrap font-mono text-xs">{host.fileHostKey}</span> {t("keyCheck.forThisHostAndThe")}
+            {t("keyCheck.theHostsFileTrusts")} <span className="logs-wrap font-mono text-xs">{host.fileHostKey}</span> {t("keyCheck.forThisHostAndThe")}
           </span>
         )}
         {can("admin") && !host.fileHostKey && (
           <span>
-            <Button variant="primary" icon={<KeyRound />} onClick={() => void call(`/api/v1/hosts/${host.id}/host-key/accept`, { method: "POST", body: JSON.stringify({ fingerprint: key.fingerprint }) }).then(onDone)}>
+            <Button
+              variant="primary"
+              icon={<KeyRound />}
+              onClick={() =>
+                void call(`/api/v1/hosts/${host.id}/host-key/accept`, { method: "POST", body: JSON.stringify({ fingerprint: key.fingerprint }) }).then(onDone)
+              }
+            >
               {t("keyCheck.itMatchesAccept")}
             </Button>
           </span>
@@ -102,7 +139,16 @@ export function HostsPage({ call }: { call: Call }) {
       sortValue: (h) => h.name,
     },
     { id: "address", header: t("hostsPage.address"), width: "150px", mono: true, cell: (h) => `${h.address}${h.port === 22 ? "" : `:${h.port}`}` },
-    { id: "status", header: t("hostsPage.status"), width: "190px", cell: (h) => <span title={h.statusDetail ?? undefined}><Status status={h.status} /></span> },
+    {
+      id: "status",
+      header: t("hostsPage.status"),
+      width: "190px",
+      cell: (h) => (
+        <span title={h.statusDetail ?? undefined}>
+          <Status status={h.status} />
+        </span>
+      ),
+    },
     { id: "lines", header: t("hostsPage.lines"), width: "90px", align: "right", mono: true, cell: (h) => count(h.linesIn), sortValue: (h) => h.linesIn },
     { id: "last", header: t("hostsPage.lastRead"), width: "110px", cell: (h) => ago(h.lastSuccessAt) },
     {
@@ -111,7 +157,11 @@ export function HostsPage({ call }: { call: Call }) {
       cell: (h) => (
         <span className="text-xs">
           journald{h.containers ? t("hostsPage.containers") : ""} every {h.intervalSeconds} s
-          {h.unreadable.length > 0 && <span className="block text-warning-text">{t("hostsPage.notReadable")}{" "}{h.unreadable.join(", ")}</span>}
+          {h.unreadable.length > 0 && (
+            <span className="block text-warning-text">
+              {t("hostsPage.notReadable")} {h.unreadable.join(", ")}
+            </span>
+          )}
         </span>
       ),
     },
@@ -128,7 +178,15 @@ export function HostsPage({ call }: { call: Call }) {
             </Button>
           )}
           {can("admin") && h.origin === "ui" && (
-            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("hostsPage.stopReadingItsLinesStay", { name: h.name })) && void call(`/api/v1/hosts/${h.id}`, { method: "DELETE" }).then(reload)}>
+            <Button
+              size="xs"
+              variant="ghost"
+              icon={<Trash2 />}
+              onClick={() =>
+                window.confirm(t("hostsPage.stopReadingItsLinesStay", { name: h.name })) &&
+                void call(`/api/v1/hosts/${h.id}`, { method: "DELETE" }).then(reload)
+              }
+            >
               {t("hostsPage.remove")}
             </Button>
           )}
@@ -151,13 +209,21 @@ export function HostsPage({ call }: { call: Call }) {
         }
       />
       {agents.length === 0 && data && (
-        <EmptyState title={t("hostsPage.addAnAgentFirst")} action={<Button variant="primary" onClick={() => navigate("/agents")}>{t("hostsPage.addAnAgent")}</Button>}>
+        <EmptyState
+          title={t("hostsPage.addAnAgentFirst")}
+          action={
+            <Button variant="primary" onClick={() => navigate("/agents")}>
+              {t("hostsPage.addAnAgent")}
+            </Button>
+          }
+        >
           {t("hostsPage.logsAgentIsInstalledOnce")}
         </EmptyState>
       )}
       {file?.error && (
         <Callout tone="danger" title={t("hostsPage.theHostsFileIsNot")}>
-          {t("hostsPage.theHostsFromItsLast", { error: file.error, path: file.path })}</Callout>
+          {t("hostsPage.theHostsFromItsLast", { error: file.error, path: file.path })}
+        </Callout>
       )}
       {!!file?.warnings.length && (
         <Callout tone="warning" title={t("hostsPage.theHostsFileHasSomething")}>
@@ -262,7 +328,16 @@ export function AgentsPage({ call }: { call: Call }) {
   };
   const cols: Column<Agent>[] = [
     { id: "name", header: t("agentsPage.agent"), cell: (a) => a.name, sortValue: (a) => a.name },
-    { id: "status", header: t("agentsPage.status"), width: "150px", cell: (a) => <span title={a.lastError ?? undefined}><Badge tone={AGENT_STATUS(t)[a.status]?.tone ?? "neutral"}>{AGENT_STATUS(t)[a.status]?.label ?? a.status}</Badge></span> },
+    {
+      id: "status",
+      header: t("agentsPage.status"),
+      width: "150px",
+      cell: (a) => (
+        <span title={a.lastError ?? undefined}>
+          <Badge tone={AGENT_STATUS(t)[a.status]?.tone ?? "neutral"}>{AGENT_STATUS(t)[a.status]?.label ?? a.status}</Badge>
+        </span>
+      ),
+    },
     { id: "hosts", header: t("agentsPage.hosts"), width: "80px", align: "right", cell: (a) => a.hosts },
     { id: "version", header: t("agentsPage.version"), width: "90px", mono: true, cell: (a) => a.version ?? "–" },
     { id: "ca", header: t("agentsPage.caFingerprint"), cell: (a) => <span className="logs-wrap font-mono text-xs">{a.caFingerprint ?? "–"}</span> },
@@ -274,11 +349,28 @@ export function AgentsPage({ call }: { call: Call }) {
       cell: (a) =>
         can("admin") && (
           <span className="flex gap-1">
-            <Button size="xs" variant="ghost" icon={<RefreshCw />} onClick={() => window.confirm(t("agentsPage.enrolAgainItsSecretStops", { name: a.name })) && void call<{ enrollToken: string; enrollExpiresAt: string }>(`/api/v1/agents/${a.id}/enroll-token`, { method: "POST" }).then((r) => (setCreated(r), reload()))}>
+            <Button
+              size="xs"
+              variant="ghost"
+              icon={<RefreshCw />}
+              onClick={() =>
+                window.confirm(t("agentsPage.enrolAgainItsSecretStops", { name: a.name })) &&
+                void call<{ enrollToken: string; enrollExpiresAt: string }>(`/api/v1/agents/${a.id}/enroll-token`, { method: "POST" }).then(
+                  (r) => (setCreated(r), reload()),
+                )
+              }
+            >
               {t("agentsPage.enrolAgain")}
             </Button>
             {a.hosts === 0 && (
-              <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("agentsPage.remove", { name: a.name })) && void call(`/api/v1/agents/${a.id}`, { method: "DELETE" }).then(reload)}>
+              <Button
+                size="xs"
+                variant="ghost"
+                icon={<Trash2 />}
+                onClick={() =>
+                  window.confirm(t("agentsPage.remove", { name: a.name })) && void call(`/api/v1/agents/${a.id}`, { method: "DELETE" }).then(reload)
+                }
+              >
                 {t("agentsPage.remove2")}
               </Button>
             )}
@@ -327,7 +419,16 @@ export function AgentsPage({ call }: { call: Call }) {
         <Panel
           title={t("agentsPage.prepareAHost")}
           description={t("agentsPage.runAsRootOnEach", { name: setup.agent.name })}
-          actions={enrolled.length > 1 && <SelectField label={t("agentsPage.forHostsReadBy")} value={chosen} onChange={(e) => setSetupFor(e.target.value)} options={enrolled.map((a) => ({ value: a.id, label: a.name }))} />}
+          actions={
+            enrolled.length > 1 && (
+              <SelectField
+                label={t("agentsPage.forHostsReadBy")}
+                value={chosen}
+                onChange={(e) => setSetupFor(e.target.value)}
+                options={enrolled.map((a) => ({ value: a.id, label: a.name }))}
+              />
+            )
+          }
         >
           <div className="flex flex-col gap-3">
             <Code label={t("agentsPage.commandsToPrepareAHost")}>{setup.hostSetup}</Code>

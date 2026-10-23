@@ -6,7 +6,12 @@ import type { NewView, View } from "./api.ts";
 import { Code, List, useData, type Call } from "./shared.tsx";
 import { useT, type T } from "./i18n.ts";
 
-const ALERT = (t: T) => ({ ok: { tone: "success", label: t("alert.under") }, firing: { tone: "danger", label: t("alert.over") }, error: { tone: "warning", label: t("alert.notChecked") } } as const);
+const ALERT = (t: T) =>
+  ({
+    ok: { tone: "success", label: t("alert.under") },
+    firing: { tone: "danger", label: t("alert.over") },
+    error: { tone: "warning", label: t("alert.notChecked") },
+  }) as const;
 
 function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; onDone: (r: NewView) => void; onCancel: () => void }) {
   const t = useT();
@@ -47,13 +52,38 @@ function ViewForm({ call, view, onDone, onCancel }: { call: Call; view?: View; o
     >
       <TextField label={t("viewForm.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("viewForm.checkoutErrors")} />
       <TextField label={t("viewForm.logsqlQuery")} mono value={query} onChange={(e) => setQuery(e.target.value)} placeholder="service:checkout level:error" />
-      <Checkbox label={t("viewForm.everyoneCanSeeIt")} description={t("viewForm.otherwiseOnlyYouCan")} checked={shared} onChange={(e) => setShared(e.target.checked)} />
-      <Checkbox label={t("viewForm.callAWebhookWhenIt")} description={t("viewForm.checkedEveryMinuteTheWebhook")} checked={alert} onChange={(e) => setAlert(e.target.checked)} />
+      <Checkbox
+        label={t("viewForm.everyoneCanSeeIt")}
+        description={t("viewForm.otherwiseOnlyYouCan")}
+        checked={shared}
+        onChange={(e) => setShared(e.target.checked)}
+      />
+      <Checkbox
+        label={t("viewForm.callAWebhookWhenIt")}
+        description={t("viewForm.checkedEveryMinuteTheWebhook")}
+        checked={alert}
+        onChange={(e) => setAlert(e.target.checked)}
+      />
       {alert && (
         <div className="flex flex-wrap items-end gap-3">
           <TextField label={t("viewForm.moreThan")} type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} hint="lines" />
-          <TextField label={t("viewForm.in")} type="number" min={1} max={1440} value={windowMinutes} onChange={(e) => setWindow(e.target.value)} hint="minutes" />
-          <TextField label={t("viewForm.webhook")} type="url" value={webhookUrl} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/logs" className="min-w-0 grow" />
+          <TextField
+            label={t("viewForm.in")}
+            type="number"
+            min={1}
+            max={1440}
+            value={windowMinutes}
+            onChange={(e) => setWindow(e.target.value)}
+            hint="minutes"
+          />
+          <TextField
+            label={t("viewForm.webhook")}
+            type="url"
+            value={webhookUrl}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://hooks.example.com/logs"
+            className="min-w-0 grow"
+          />
         </div>
       )}
       {error && (
@@ -86,10 +116,11 @@ export function ViewsPage({ call }: { call: Call }) {
           <span className="flex flex-col gap-0.5" title={v.alert.lastError ?? undefined}>
             <span className="flex items-center gap-1.5">
               <Badge tone={ALERT(t)[v.alert.state].tone}>{ALERT(t)[v.alert.state].label}</Badge>
-              <span className="text-xs">
-                {t("viewsPage.gtInMin", { threshold: v.alert.threshold, windowMinutes: v.alert.windowMinutes })}</span>
+              <span className="text-xs">{t("viewsPage.gtInMin", { threshold: v.alert.threshold, windowMinutes: v.alert.windowMinutes })}</span>
             </span>
-            <span className="text-xs text-fg-muted">{v.alert.lastCount === null ? t("viewsPage.notCheckedYet") : `${v.alert.lastCount} ${ago(v.alert.lastCheckedAt)}`}</span>
+            <span className="text-xs text-fg-muted">
+              {v.alert.lastCount === null ? t("viewsPage.notCheckedYet") : `${v.alert.lastCount} ${ago(v.alert.lastCheckedAt)}`}
+            </span>
           </span>
         ) : (
           <span className="text-fg-muted">–</span>
@@ -105,7 +136,12 @@ export function ViewsPage({ call }: { call: Call }) {
             <Button size="xs" variant="ghost" icon={<Pencil />} onClick={() => setEditing(v)}>
               {t("viewsPage.change")}
             </Button>
-            <Button size="xs" variant="ghost" icon={<Trash2 />} onClick={() => window.confirm(t("viewsPage.remove", { name: v.name })) && void call(`/api/v1/views/${v.id}`, { method: "DELETE" }).then(reload)}>
+            <Button
+              size="xs"
+              variant="ghost"
+              icon={<Trash2 />}
+              onClick={() => window.confirm(t("viewsPage.remove", { name: v.name })) && void call(`/api/v1/views/${v.id}`, { method: "DELETE" }).then(reload)}
+            >
               {t("viewsPage.remove2")}
             </Button>
           </span>
