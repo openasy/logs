@@ -10,7 +10,7 @@
 #   LOGS_ENROLL_TOKEN=... docker compose up -d logs-agent
 services:
   logs:
-    image: ghcr.io/openasy/logs:0.1.0
+    image: ghcr.io/openasy/logs:0.2.0
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -35,7 +35,7 @@ services:
       # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
 
   logs-agent:
-    image: ghcr.io/openasy/logs-agent:0.1.0 # always the same version as logs
+    image: ghcr.io/openasy/logs-agent:0.2.0 # always the same version as logs
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

@@ -257,6 +257,7 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
             className="min-w-0 grow"
           />
           <TimeRangePicker
+            size="md"
             value={range}
             onChange={(r) => {
               setRange(r);
