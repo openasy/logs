@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { OPENAPI } from "../scripts/openapi.ts";
+import { parseHosts } from "./hosts.ts";
 import { fingerprint } from "./logs.ts";
 import { CA_KEY, HOST_KEY, OTHER_KEY, REPORT, startApp } from "./test-app.ts";
 
@@ -416,14 +417,17 @@ describe("agents and hosts", () => {
     ).toBe(404);
   });
 
+  // Hosts come from the hosts file only (ADR 0052): the tests apply one as the product does.
+  const fromFile = (yaml: string) => app.logs.syncFile(parseHosts(yaml));
+
   it("hosts go through an ssh source made for them, after their key is accepted", async () => {
     agent.hosts.set("10.0.0.5", { key: HOST_KEY, lines: [], cursor: "s=abc;i=1f;b=00;m=12;t=34;x=56" });
-    const created = await call("admin", "POST", "/api/v1/hosts", { body: { name: "web-1", address: "10.0.0.5" } });
-    expect(created.status).toBe(201);
-    hostId = created.body.id;
-    expect(created.body).toMatchObject({ status: "new", source: { name: "hosts" }, agent: { name: "dc-2" }, intervalSeconds: 60 });
-    expect((await call("admin", "POST", "/api/v1/hosts", { body: { name: "web-1", address: "10.0.0.6" } })).status).toBe(409);
-    expect((await call("admin", "POST", "/api/v1/hosts", { body: { name: "bad", address: "-oProxyCommand=x" } })).status).toBe(422);
+    expect((await app.admin("/api/v1/hosts", { method: "POST", body: JSON.stringify({ name: "web-1", address: "10.0.0.5" }) })).status).toBe(404);
+    expect(fromFile("hosts:\n  - { name: web-1, address: 10.0.0.5 }\n")).toEqual([]);
+    const created = (await call("viewer", "GET", "/api/v1/hosts")).body.hosts[0];
+    hostId = created.id;
+    expect(created).toMatchObject({ status: "new", origin: "file", source: { name: "hosts" }, agent: { name: "dc-2" }, intervalSeconds: 60 });
+    expect(() => parseHosts("hosts:\n  - { name: bad, address: '-oProxyCommand=x' }\n")).toThrow(/address/);
     expect((await call("editor", "POST", "/api/v1/hosts/{id}/read", { concrete: `/api/v1/hosts/${hostId}/read` })).status).toBe(409);
 
     await agent.round();
@@ -479,17 +483,24 @@ describe("agents and hosts", () => {
   });
 
   it("failures and other versions are reported, and hosts move and go", async () => {
-    const moved = await call("admin", "PATCH", "/api/v1/hosts/{id}", {
-      concrete: `/api/v1/hosts/${hostId}`,
-      body: { address: "10.0.0.9", intervalSeconds: 30, containers: true },
-    });
-    expect(moved.body).toMatchObject({ status: "new", hostKeys: [], intervalSeconds: 30, containers: true });
+    fromFile("hosts:\n  - { name: web-1, address: 10.0.0.9, containers: true }\n");
+    const moved = await call("viewer", "GET", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` });
+    expect(moved.body).toMatchObject({ status: "new", hostKeys: [], containers: true });
     await agent.round();
     expect((await call("viewer", "GET", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).body.statusDetail).toContain("Connection refused");
     expect((await call({ secret: agent.secret }, "POST", "/api/v1/agent/work", { body: REPORT("0.0.1") })).status).toBe(409);
     expect((await call("admin", "DELETE", "/api/v1/agents/{id}", { concrete: `/api/v1/agents/${agent.id}` })).status).toBe(409);
     expect((await call("admin", "DELETE", "/api/v1/sources/{id}", { concrete: `/api/v1/sources/${moved.body.source.id}` })).status).toBe(409);
-    expect((await call("admin", "DELETE", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).status).toBe(204);
+    expect((await call("admin", "DELETE", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).status).toBe(409);
+    fromFile("hosts: []\n");
+    expect((await call("viewer", "GET", "/api/v1/hosts/{id}", { concrete: `/api/v1/hosts/${hostId}` })).status).toBe(404);
+    // One added here before the file can still be removed here.
+    app.db
+      .prepare(
+        "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at) VALUES ('ui-old', 'old-1', ?, ?, '10.0.0.4', 22, 'openasy', 'certificate', 0, 60, ?)",
+      )
+      .run(agent.id, moved.body.source.id, new Date().toISOString());
+    expect((await call("admin", "DELETE", "/api/v1/hosts/{id}", { concrete: "/api/v1/hosts/ui-old" })).status).toBe(204);
   });
 });
 

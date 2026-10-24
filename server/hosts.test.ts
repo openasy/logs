@@ -90,15 +90,18 @@ describe("hosts from the file", () => {
     expect(accepted.status).toBe(200);
   });
 
-  it("are changed in the file only, and a name taken here is left alone", async () => {
+  it("are changed in the file only, and one added here before is taken over by its name", async () => {
     const web = await host("web-1");
-    expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "PATCH", body: JSON.stringify({ port: 2200 }) })).status).toBe(409);
+    expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "PATCH", body: JSON.stringify({ port: 2200 }) })).status).toBe(404);
     expect((await app.admin(`/api/v1/hosts/${web.id}`, { method: "DELETE" })).status).toBe(409);
-    await app.admin("/api/v1/hosts", { method: "POST", body: JSON.stringify({ name: "mail-1", address: "10.0.0.9" }) });
-    expect(app.logs.syncFile(parseHosts("hosts:\n  - { name: mail-1, address: 10.0.0.9, agent: dc1 }\n"))).toEqual([
-      "mail-1: a host with this name was added in Logs; remove it there to let the file manage it.",
-    ]);
-    expect((await hosts()).map((h) => `${h.name} ${h.origin}`)).toEqual(["mail-1 ui"]);
+    app.db
+      .prepare(
+        "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at) VALUES ('ui-mail', 'mail-1', ?, ?, '10.0.0.9', 22, 'openasy', 'certificate', 0, 30, ?)",
+      )
+      .run(web.agent.id, web.source.id, new Date().toISOString());
+    expect(app.logs.syncFile(parseHosts("hosts:\n  - { name: mail-1, address: 10.0.0.9, agent: dc1 }\n"))).toEqual([]);
+    // It keeps its pipeline and how often it is read, which the file does not set.
+    expect((await hosts()).map((h) => `${h.id} ${h.name} ${h.origin} ${h.intervalSeconds}`)).toEqual(["ui-mail mail-1 file 30"]);
   });
 });
 

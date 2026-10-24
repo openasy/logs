@@ -102,19 +102,6 @@
     "logLines": "Log lines",
     "noLinesMatchWidenThe": "No lines match. Widen the time range, or check the query."
   },
-  "addHost": {
-    "addAHost": "Add a host",
-    "theAgentAsksTheHost": "The agent asks the host for its key first. Check the fingerprint on the host, then accept it; reading starts within a minute.",
-    "cancel": "Cancel",
-    "addHost": "Add host",
-    "name": "Name",
-    "itsLinesCarryItAs": "Its lines carry it as host",
-    "address": "Address",
-    "readBy": "Read by",
-    "pipelineOf": "Pipeline of",
-    "alsoReadContainerLogs": "Also read container logs",
-    "throughTheHostSDocker": "Through the host's Docker. Access to the Docker socket is equivalent to root on that host."
-  },
   "keyCheck": {
     "presentsAnotherKey": "{{name}} presents another key",
     "checkTheKeyOf": "Check the key of {{name}}",
@@ -140,14 +127,18 @@
     "remove": "Remove",
     "hosts": "Hosts",
     "serversLogsAgentReadsOver": "Servers logs-agent reads over SSH: the system journal, and container logs where switched on. Nothing is installed on them.",
-    "addHost": "Add host",
     "addAnAgentFirst": "Add an agent first",
     "addAnAgent": "Add an agent",
     "logsAgentIsInstalledOnce": "logs-agent is installed once per network and reads the hosts there. Hosts that already send their logs need no agent: add a source for them instead.",
     "theHostsFromItsLast": "{{error}}The hosts from its last good version stay until it is fixed ({{path}}).",
     "theHostsFileIsNot": "The hosts file is not applied",
     "theHostsFileHasSomething": "The hosts file has something to fix",
-    "noHostsYetPrepareOne": "No hosts yet. Prepare one with the commands under Agents, then add it here."
+    "noHostsYetPrepareOne": "Prepare a host with the commands under Agents, then list it in the hosts file the install keeps (OPENASY_HOSTS), which Infrastructure and the other products read too, such as:",
+    "addedHereBefore_one": "{{count}} host was added here before the file",
+    "addedHereBefore_other": "{{count}} hosts were added here before the file",
+    "copyTheseIntoTheHostsFile": "They keep being read. Copy these lines into the hosts file: once an entry has the same name, it takes the host over with its pipeline and trusted key.",
+    "noHostsYet": "No hosts yet",
+    "linesForTheHostsFile": "Lines for the hosts file"
   },
   "enrollCommand": {
     "startTheAgentWithThis": "Start the agent with this one-time token",

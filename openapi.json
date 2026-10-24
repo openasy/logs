@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "OpenAsy Logs API",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "summary": "Search what happened on every host and service.",
     "description": "Every screen of Logs uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only (ADR 0024). Errors use Problem Details (RFC 9457).\n\nLogs are stored in VictoriaLogs inside the product and searched with [LogsQL](https://docs.victoriametrics.com/victorialogs/logsql/) as it is (ADR 0035). They are sent with a source's ingest token, by syslog, or read over SSH by logs-agent. Each operation names the role it needs (`x-openasy-role`). Sign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
     "license": {
@@ -2229,7 +2229,7 @@
           "Hosts"
         ],
         "summary": "List hosts",
-        "description": "Needs the viewer role.",
+        "description": "The hosts come from the hosts file (OPENASY_HOSTS, ADR 0052); no route adds or changes one.\n\nNeeds the viewer role.",
         "security": [
           {
             "session": []
@@ -2265,60 +2265,6 @@
             "$ref": "#/components/responses/Problem"
           },
           "403": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "post": {
-        "operationId": "createHost",
-        "tags": [
-          "Hosts"
-        ],
-        "summary": "Add a host",
-        "description": "Logs asks the host for its key right away. Check the fingerprint on the host and accept it before the first read.\n\nNeeds the admin role.",
-        "security": [
-          {
-            "session": []
-          },
-          {
-            "apiToken": []
-          }
-        ],
-        "x-openasy-role": "admin",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HostInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Added",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Host"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "422": {
             "$ref": "#/components/responses/Problem"
           }
         }
@@ -2373,124 +2319,13 @@
           }
         }
       },
-      "patch": {
-        "operationId": "updateHost",
-        "tags": [
-          "Hosts"
-        ],
-        "summary": "Change a host",
-        "description": "A new address or port unpins the host key.\n\nNeeds the admin role.",
-        "security": [
-          {
-            "session": []
-          },
-          {
-            "apiToken": []
-          }
-        ],
-        "x-openasy-role": "admin",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$",
-                    "description": "Stored as the host field of its lines."
-                  },
-                  "agentId": {
-                    "type": "string",
-                    "description": "The agent that reads this host. Optional when there is only one."
-                  },
-                  "sourceId": {
-                    "type": "string",
-                    "description": "The ssh source whose pipeline its lines go through. Optional when there is one or none."
-                  },
-                  "address": {
-                    "type": "string"
-                  },
-                  "port": {
-                    "type": "integer",
-                    "default": 22
-                  },
-                  "user": {
-                    "type": "string",
-                    "default": "openasy"
-                  },
-                  "auth": {
-                    "type": "string",
-                    "enum": [
-                      "certificate",
-                      "key"
-                    ],
-                    "default": "certificate"
-                  },
-                  "containers": {
-                    "type": "boolean",
-                    "default": false
-                  },
-                  "intervalSeconds": {
-                    "type": "integer",
-                    "minimum": 15,
-                    "maximum": 3600,
-                    "default": 60
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Host"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
       "delete": {
         "operationId": "deleteHost",
         "tags": [
           "Hosts"
         ],
         "summary": "Stop reading a host",
-        "description": "Its lines stay until retention removes them.\n\nNeeds the admin role.",
+        "description": "Only a host added in Logs before the hosts file was the way in; one from the file answers 409 and is removed in the file. Its lines stay until retention removes them.\n\nNeeds the admin role.",
         "security": [
           {
             "session": []
@@ -3980,57 +3815,6 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
-          }
-        }
-      },
-      "HostInput": {
-        "type": "object",
-        "required": [
-          "name",
-          "address"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$",
-            "description": "Stored as the host field of its lines."
-          },
-          "agentId": {
-            "type": "string",
-            "description": "The agent that reads this host. Optional when there is only one."
-          },
-          "sourceId": {
-            "type": "string",
-            "description": "The ssh source whose pipeline its lines go through. Optional when there is one or none."
-          },
-          "address": {
-            "type": "string"
-          },
-          "port": {
-            "type": "integer",
-            "default": 22
-          },
-          "user": {
-            "type": "string",
-            "default": "openasy"
-          },
-          "auth": {
-            "type": "string",
-            "enum": [
-              "certificate",
-              "key"
-            ],
-            "default": "certificate"
-          },
-          "containers": {
-            "type": "boolean",
-            "default": false
-          },
-          "intervalSeconds": {
-            "type": "integer",
-            "minimum": 15,
-            "maximum": 3600,
-            "default": 60
           }
         }
       },

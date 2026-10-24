@@ -203,21 +203,6 @@ const schemas: Record<string, S> = {
     lastSuccessAt: nul(dt),
     createdAt: dt,
   }),
-  HostInput: {
-    type: "object",
-    required: ["name", "address"],
-    properties: {
-      name: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$", description: "Stored as the host field of its lines." },
-      agentId: { type: "string", description: "The agent that reads this host. Optional when there is only one." },
-      sourceId: { type: "string", description: "The ssh source whose pipeline its lines go through. Optional when there is one or none." },
-      address: str,
-      port: { type: "integer", default: 22 },
-      user: { type: "string", default: "openasy" },
-      auth: { type: "string", enum: ["certificate", "key"], default: "certificate" },
-      containers: { type: "boolean", default: false },
-      intervalSeconds: { type: "integer", minimum: 15, maximum: 3600, default: 60 },
-    },
-  },
   Agent: obj({
     id: str,
     name: str,
@@ -337,7 +322,7 @@ const spec = {
   openapi: "3.1.1",
   info: {
     title: "OpenAsy Logs API",
-    version: "0.5.0",
+    version: "0.6.0",
     summary: "Search what happened on every host and service.",
     description:
       "Every screen of Logs uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only (ADR 0024). Errors use Problem Details (RFC 9457).\n\nLogs are stored in VictoriaLogs inside the product and searched with [LogsQL](https://docs.victoriametrics.com/victorialogs/logsql/) as it is (ADR 0035). They are sent with a source's ingest token, by syslog, or read over SSH by logs-agent. Each operation names the role it needs (`x-openasy-role`). Sign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
@@ -704,15 +689,13 @@ const spec = {
       }),
     },
     "/api/v1/hosts": {
-      get: op({ id: "listHosts", tag: "Hosts", summary: "List hosts", role: "viewer", responses: { "200": ok(obj({ hosts: arr(ref("Host")) })), ...R("v") } }),
-      post: op({
-        id: "createHost",
+      get: op({
+        id: "listHosts",
         tag: "Hosts",
-        summary: "Add a host",
-        description: "Logs asks the host for its key right away. Check the fingerprint on the host and accept it before the first read.",
-        role: "admin",
-        body: ref("HostInput"),
-        responses: { "201": ok(ref("Host"), "Added"), ...R("a"), ...P(400, 409, 422) },
+        summary: "List hosts",
+        description: "The hosts come from the hosts file (OPENASY_HOSTS, ADR 0052); no route adds or changes one.",
+        role: "viewer",
+        responses: { "200": ok(obj({ hosts: arr(ref("Host")) })), ...R("v") },
       }),
     },
     "/api/v1/hosts/{id}": {
@@ -724,21 +707,12 @@ const spec = {
         params: [id],
         responses: { "200": ok(ref("Host")), ...R("v"), ...P(404) },
       }),
-      patch: op({
-        id: "updateHost",
-        tag: "Hosts",
-        summary: "Change a host",
-        description: "A new address or port unpins the host key.",
-        role: "admin",
-        params: [id],
-        body: { type: "object", properties: (schemas.HostInput as { properties: S }).properties },
-        responses: { "200": ok(ref("Host")), ...R("a"), ...P(400, 404, 409, 422) },
-      }),
       delete: op({
         id: "deleteHost",
         tag: "Hosts",
         summary: "Stop reading a host",
-        description: "Its lines stay until retention removes them.",
+        description:
+          "Only a host added in Logs before the hosts file was the way in; one from the file answers 409 and is removed in the file. Its lines stay until retention removes them.",
         role: "admin",
         params: [id],
         responses: { "204": { description: "Removed" }, ...R("a"), ...P(404, 409) },

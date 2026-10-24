@@ -123,9 +123,6 @@ interface ViewRow {
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
 const VIEW_NAME = /^\S.{0,79}$/;
-// Never starts with "-": a value that ssh could read as an option. The agent checks it again.
-const ADDRESS = /^[A-Za-z0-9][A-Za-z0-9.:-]{0,252}$|^\[[0-9a-fA-F:]+\]$/;
-const USER = /^[a-z_][a-z0-9_-]{0,31}$/;
 const HOST_KEY = /^(ssh-ed25519|ecdsa-sha2-nistp(256|384|521)|ssh-rsa|sk-ssh-ed25519@openssh\.com) [A-Za-z0-9+/]+={0,2}$/;
 /** journalctl cursors: s=...;i=...;b=...;m=...;t=...;x=... */
 const CURSOR = /^[a-z]=[0-9a-f]+(;[a-z]=[0-9a-f]+){0,7}$/;
@@ -717,123 +714,12 @@ export function createLogs(
     };
   }
 
-  function hostInput(b: Record<string, unknown>, partial: boolean) {
-    const out: Partial<{
-      name: string;
-      agentId: string;
-      sourceId: string;
-      address: string;
-      port: number;
-      user: string;
-      auth: HostRow["auth"];
-      containers: boolean;
-      intervalSeconds: number;
-    }> = {};
-    if (b.name !== undefined || !partial) {
-      if (typeof b.name !== "string" || !NAME.test(b.name)) throw bad("name is letters, digits, dots, dashes and underscores, up to 63.");
-      out.name = b.name;
-    }
-    if (b.agentId !== undefined) {
-      if (typeof b.agentId !== "string" || !agentRow(b.agentId)) throw bad("agentId is the id of an agent.");
-      out.agentId = b.agentId;
-    }
-    if (b.sourceId !== undefined) {
-      const s = typeof b.sourceId === "string" ? sourceRow(b.sourceId) : undefined;
-      if (!s || s.kind !== "ssh") throw bad("sourceId is the id of an ssh source.");
-      out.sourceId = s.id;
-    }
-    if (b.address !== undefined || !partial) {
-      if (typeof b.address !== "string" || !ADDRESS.test(b.address)) throw bad("address is a host name or IP address.");
-      out.address = b.address;
-    }
-    if (b.port !== undefined) {
-      if (typeof b.port !== "number" || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535) throw bad("port is 1 to 65535.");
-      out.port = b.port;
-    }
-    if (b.user !== undefined) {
-      if (typeof b.user !== "string" || !USER.test(b.user)) throw bad("user is a Unix account name.");
-      out.user = b.user;
-    }
-    if (b.auth !== undefined) {
-      if (b.auth !== "certificate" && b.auth !== "key") throw bad("auth is certificate or key.");
-      out.auth = b.auth;
-    }
-    if (b.containers !== undefined) {
-      if (typeof b.containers !== "boolean") throw bad("containers is true or false.");
-      out.containers = b.containers;
-    }
-    if (b.intervalSeconds !== undefined) {
-      if (typeof b.intervalSeconds !== "number" || !Number.isInteger(b.intervalSeconds) || b.intervalSeconds < 15 || b.intervalSeconds > 3600)
-        throw bad("intervalSeconds is 15 to 3600.");
-      out.intervalSeconds = b.intervalSeconds;
-    }
-    return out;
-  }
-
   /** The ssh source new hosts go through when none is named: the only one, or one made for them. */
   function defaultSshSource(): string {
     const rows = db.prepare("SELECT id FROM sources WHERE kind = 'ssh'").all() as Array<{ id: string }>;
     if (rows.length === 1) return rows[0]!.id;
     if (rows.length > 1) throw bad("sourceId: choose the ssh source this host's logs go through.");
     return createSource({ kind: "ssh", name: "hosts" }).source.id;
-  }
-
-  function createHost(b: Record<string, unknown>) {
-    const v = hostInput(b, false);
-    let agentId = v.agentId;
-    if (!agentId) {
-      const agents = db.prepare("SELECT id FROM agents").all() as Array<{ id: string }>;
-      if (agents.length !== 1) throw bad(agents.length ? "agentId: choose the agent that reads this host." : "Add an agent first, under Agents.");
-      agentId = agents[0]!.id;
-    }
-    if (db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name!)) throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
-    const sourceId = v.sourceId ?? defaultSshSource();
-    const id = randomUUID();
-    db.prepare(
-      "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, containers, interval_seconds, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-      id,
-      v.name!,
-      agentId,
-      sourceId,
-      v.address!,
-      v.port ?? 22,
-      v.user ?? "openasy",
-      v.auth ?? "certificate",
-      v.containers ? 1 : 0,
-      v.intervalSeconds ?? 60,
-      iso(),
-    );
-    return toHost(requireHost(id));
-  }
-
-  function updateHost(id: string, b: Record<string, unknown>) {
-    const h = fromFile(requireHost(id), "Change it there.");
-    const v = hostInput(b, true);
-    if (v.name && v.name !== h.name && db.prepare("SELECT 1 FROM hosts WHERE name = ?").get(v.name))
-      throw new LogsError(409, "conflict", `A host named ${v.name} exists.`);
-    const agentId = v.agentId ?? h.agent_id;
-    const moved = (v.address !== undefined && v.address !== h.address) || (v.port !== undefined && v.port !== h.port) || agentId !== h.agent_id;
-    db.prepare(
-      "UPDATE hosts SET name = ?, agent_id = ?, source_id = ?, address = ?, port = ?, ssh_user = ?, auth = ?, containers = ?, interval_seconds = ? WHERE id = ?",
-    ).run(
-      v.name ?? h.name,
-      agentId,
-      v.sourceId ?? h.source_id,
-      v.address ?? h.address,
-      v.port ?? h.port,
-      v.user ?? h.ssh_user,
-      v.auth ?? h.auth,
-      v.containers === undefined ? h.containers : v.containers ? 1 : 0,
-      v.intervalSeconds ?? h.interval_seconds,
-      id,
-    );
-    // A new address, or another agent, is a new trust decision: the key must be checked again.
-    if (moved)
-      db.prepare(
-        "UPDATE hosts SET host_keys = '[]', pending_host_keys = '[]', status = 'new', status_detail = NULL, key_requested = 1, lease_until = NULL WHERE id = ?",
-      ).run(id);
-    return toHost(requireHost(id));
   }
 
   function requestHostKey(id: string) {
@@ -865,8 +751,8 @@ export function createLogs(
   };
 
   /**
-   * Makes the hosts from the hosts file match it (ADR 0052): adds, changes and removes them, and leaves hosts added
-   * here alone. Logs reaches hosts directly, so one behind a jump host is left out with a warning. An entry that
+   * Makes the hosts match the hosts file (ADR 0052): adds, changes and removes them. A host added here before, with
+   * the name of an entry, becomes the file's and keeps its pipeline and what it read. Logs reaches hosts directly, so one behind a jump host is left out with a warning. An entry that
    * cannot be added yet, such as one whose agent is not enrolled, is a warning, and a host it made before is kept. A
    * new address, port or agent, or another hostKey than the pinned key, is a new trust decision. Returns what to fix.
    */
@@ -891,10 +777,7 @@ export function createLogs(
         );
       if (!agentId) continue;
       const h = db.prepare("SELECT * FROM hosts WHERE name = ?").get(e.name) as HostRow | undefined;
-      if (h?.origin === "ui") {
-        warnings.push(`${e.name}: a host with this name was added in Logs; remove it there to let the file manage it.`);
-        continue;
-      }
+      if (h?.origin === "ui") db.prepare("UPDATE hosts SET origin = 'file' WHERE id = ?").run(h.id);
       if (!h) {
         db.prepare(
           "INSERT INTO hosts (id, name, agent_id, source_id, address, port, ssh_user, auth, key_file, containers, interval_seconds, created_at, origin, file_host_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 60, ?, 'file', ?)",
@@ -1258,9 +1141,7 @@ export function createLogs(
     result,
     listHosts: () => (db.prepare("SELECT * FROM hosts ORDER BY name").all() as unknown as HostRow[]).map(toHost),
     host: (id: string) => toHost(requireHost(id)),
-    createHost,
     syncFile,
-    updateHost,
     deleteHost,
     requestHostKey,
     acceptHostKey,

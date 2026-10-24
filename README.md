@@ -49,12 +49,15 @@ needs that account in the `systemd-journal` group; without it only its own journ
 Hosts are prepared as for Infrastructure (see the [infra README](https://github.com/openasy/infra#prepare-a-host)).
 Values that look like passwords, tokens or keys are masked before they leave the network.
 
-Hosts can also come from the install's hosts file, the same file Infrastructure reads (ADR 0052): mount it and set
-`OPENASY_HOSTS`. Logs reads `name`, `address`, `port`, `user`, `auth`, `containers`, `agent` and `hostKey` (see the
-[infra README](https://github.com/openasy/infra#from-a-file)); a host that presents the key `hostKey` names is
-trusted without an admin, and `hostKey: first` trusts the first key a host presents. Logs reaches hosts directly, so an entry with `jump` is left out with a warning. Hosts
-from the file show **From file** and are changed there; the API answers 409 to a change or delete. A file with a
-mistake is not applied at all, and the Hosts page and the log say what to fix.
+Hosts come from the install's hosts file, the same file Infrastructure reads, and from nowhere else (ADR 0052): there
+is no form and no API route that adds or changes one. Mount it and set `OPENASY_HOSTS`. Logs reads `name`, `address`,
+`port`, `user`, `auth`, `containers`, `agent` and `hostKey` (see the
+[infra README](https://github.com/openasy/infra#from-a-file)); a host that presents the key `hostKey` names is trusted
+without an admin, and `hostKey: first` trusts the first key a host presents. Logs reaches hosts directly, so an entry
+with `jump` is left out with a warning. A host is changed and removed in the file; the API answers 409 to a delete.
+Hosts added in the UI before 0.6.0 keep being read, and the Hosts page shows the lines to copy into the file; once an
+entry has the same name, it takes the host over with its pipeline and trusted key. A file with a mistake is not applied
+at all, and the Hosts page and the log say what to fix.
 
 ## Configuration
 

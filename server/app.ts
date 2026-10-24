@@ -418,9 +418,7 @@ export function createApp({
 
     // Hosts read over SSH.
     { method: "GET", path: "/api/v1/hosts", auth: "viewer", handle: () => ({ hosts: logs.listHosts() }) },
-    { method: "POST", path: "/api/v1/hosts", auth: "admin", handle: async ({ res, body }) => created(res, logs.createHost(await body())) },
     { method: "GET", path: "/api/v1/hosts/:id", auth: "viewer", handle: ({ params }) => logs.host(params[0]!) },
-    { method: "PATCH", path: "/api/v1/hosts/:id", auth: "admin", handle: async ({ params, body }) => logs.updateHost(params[0]!, await body()) },
     { method: "DELETE", path: "/api/v1/hosts/:id", auth: "admin", handle: ({ res, params }) => (logs.deleteHost(params[0]!), noContent(res)) },
     { method: "POST", path: "/api/v1/hosts/:id/read", auth: "editor", handle: ({ res, params }) => (logs.requestRead(params[0]!), accepted(res)) },
     { method: "POST", path: "/api/v1/hosts/:id/host-key", auth: "admin", handle: ({ params }) => logs.requestHostKey(params[0]!) },

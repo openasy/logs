@@ -1,82 +1,31 @@
-import { Badge, Button, Callout, Checkbox, Dialog, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column, useAgo } from "@openasy/ui";
+import { Badge, Button, Callout, Dialog, EmptyState, navigate, PageHeader, Panel, SelectField, TextField, type Column, useAgo } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
 import { Check, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { Agent, AgentSetup, Host, Source, Summary } from "./api.ts";
+import type { Agent, AgentSetup, Host, Summary } from "./api.ts";
 import { Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
 import { useT, type T } from "./i18n.ts";
 
-function AddHost({ call, agents, sources, onAdded, onCancel }: { call: Call; agents: Agent[]; sources: Source[]; onAdded: () => void; onCancel: () => void }) {
-  const t = useT();
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [agentId, setAgentId] = useState(agents[0]?.id ?? "");
-  const [sourceId, setSourceId] = useState(sources[0]?.id ?? "");
-  const [containers, setContainers] = useState(false);
-  const [error, setError] = useState<string>();
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    try {
-      await call("/api/v1/hosts", { method: "POST", body: JSON.stringify({ name, address, agentId, ...(sourceId && { sourceId }), containers }) });
-      onAdded();
-    } catch (err) {
-      setError((err as Error).message);
-    }
+// What to write in the hosts file (ADR 0052), shown where there is nothing yet.
+const EXAMPLE = `hosts:
+  - name: web-1
+    address: 10.0.0.5
+    agent: dc1
+    containers: true`;
+
+/** The entries of the hosts file for hosts added here before it was the way in. */
+function toYaml(hosts: Host[]): string {
+  const entry = (h: Host) => {
+    const lines = [`  - name: ${h.name}`, `    address: ${h.address}`, `    agent: ${h.agent.name}`];
+    if (h.port !== 22) lines.push(`    port: ${h.port}`);
+    if (h.user !== "openasy") lines.push(`    user: ${h.user}`);
+    if (h.auth === "key") lines.push("    auth: key");
+    if (h.containers) lines.push("    containers: true");
+    return lines.join("\n");
   };
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => !open && onCancel()}
-      title={t("addHost.addAHost")}
-      description={t("addHost.theAgentAsksTheHost")}
-      onSubmit={add}
-      footer={
-        <>
-          <Button type="button" onClick={onCancel}>
-            {t("addHost.cancel")}
-          </Button>
-          <Button type="submit" variant="primary" disabled={!name || !address}>
-            {t("addHost.addHost")}
-          </Button>
-        </>
-      }
-    >
-      <TextField
-        label={t("addHost.name")}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="web-1"
-        hint={t("addHost.itsLinesCarryItAs")}
-        error={error}
-      />
-      <TextField label={t("addHost.address")} mono value={address} onChange={(e) => setAddress(e.target.value)} placeholder="10.0.0.5" />
-      {agents.length > 1 && (
-        <SelectField
-          label={t("addHost.readBy")}
-          value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
-          options={agents.map((a) => ({ value: a.id, label: a.name }))}
-        />
-      )}
-      {sources.length > 1 && (
-        <SelectField
-          label={t("addHost.pipelineOf")}
-          value={sourceId}
-          onChange={(e) => setSourceId(e.target.value)}
-          options={sources.map((s) => ({ value: s.id, label: s.name }))}
-        />
-      )}
-      <Checkbox
-        label={t("addHost.alsoReadContainerLogs")}
-        description={t("addHost.throughTheHostSDocker")}
-        checked={containers}
-        onChange={(e) => setContainers(e.target.checked)}
-      />
-    </Dialog>
-  );
+  return ["hosts:", ...hosts.map(entry)].join("\n");
 }
 
-/** A host that waits for an admin to compare its key with what the host itself prints. */
 function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () => void }) {
   const t = useT();
   const { can } = useAuth();
@@ -122,8 +71,7 @@ export function HostsPage({ call }: { call: Call }) {
   const { can } = useAuth();
   const { data, reload } = useData<{ hosts: Host[] }>(call, "/api/v1/hosts", 10_000);
   const agents = useData<{ agents: Agent[] }>(call, "/api/v1/agents", 0).data?.agents ?? [];
-  const sources = (useData<{ sources: Source[] }>(call, "/api/v1/sources", 0).data?.sources ?? []).filter((s) => s.kind === "ssh");
-  const [adding, setAdding] = useState(false);
+  const added = (data?.hosts ?? []).filter((h) => h.origin === "ui");
   const file = useData<Summary>(call, "/api/v1/summary", 30_000).data?.hostsFile;
   const waiting = (data?.hosts ?? []).filter((h) => h.pendingHostKeys.length > 0);
   const cols: Column<Host>[] = [
@@ -196,18 +144,7 @@ export function HostsPage({ call }: { call: Call }) {
   ];
   return (
     <>
-      <PageHeader
-        title={t("hostsPage.hosts")}
-        description={t("hostsPage.serversLogsAgentReadsOver")}
-        actions={
-          can("admin") &&
-          agents.length > 0 && (
-            <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-              {t("hostsPage.addHost")}
-            </Button>
-          )
-        }
-      />
+      <PageHeader title={t("hostsPage.hosts")} description={t("hostsPage.serversLogsAgentReadsOver")} />
       {agents.length === 0 && data && (
         <EmptyState
           title={t("hostsPage.addAnAgentFirst")}
@@ -230,24 +167,28 @@ export function HostsPage({ call }: { call: Call }) {
           {file.warnings.join(" ")}
         </Callout>
       )}
-      {adding && (
-        <AddHost
-          call={call}
-          agents={agents}
-          sources={sources}
-          onAdded={() => {
-            setAdding(false);
-            reload();
-          }}
-          onCancel={() => setAdding(false)}
-        />
+      {!!added.length && (
+        <Callout tone="info" title={t("hostsPage.addedHereBefore", { count: added.length })}>
+          {t("hostsPage.copyTheseIntoTheHostsFile")}
+          <div className="mt-2">
+            <Code label={t("hostsPage.linesForTheHostsFile")}>{toYaml(added)}</Code>
+          </div>
+        </Callout>
       )}
       {waiting.map((h) => (
         <KeyCheck key={h.id} call={call} host={h} onDone={reload} />
       ))}
-      {agents.length > 0 && (
+      {agents.length > 0 && data?.hosts.length === 0 && (
+        <EmptyState title={t("hostsPage.noHostsYet")}>
+          {t("hostsPage.noHostsYetPrepareOne")}
+          <div className="mt-3 text-left">
+            <Code label={t("hostsPage.linesForTheHostsFile")}>{EXAMPLE}</Code>
+          </div>
+        </EmptyState>
+      )}
+      {agents.length > 0 && !!data?.hosts.length && (
         <Panel flush>
-          <List label={t("hostsPage.hosts")} rows={data?.hosts} columns={cols} empty={t("hostsPage.noHostsYetPrepareOne")} getRowId={(h) => h.id} />
+          <List label={t("hostsPage.hosts")} rows={data?.hosts} columns={cols} empty={t("hostsPage.noHostsYet")} getRowId={(h) => h.id} />
         </Panel>
       )}
     </>
