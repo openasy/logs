@@ -18,6 +18,7 @@ import {
   useAgo,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth, useInstallBrand } from "@openasy/auth/react";
+import colophon from "virtual:openasy-colophon";
 import { Bookmark, Bot, Cable, Eye, KeyRound, LayoutDashboard, LogIn, LogOut, Radio, Search, Server, Settings2, UserRound, Users } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import type { ProductLink, SearchRecord, Settings, Summary } from "./api.ts";
@@ -43,6 +44,7 @@ export const PAGES = [
   "members",
   "signin",
   "tokens",
+  "about",
 ] as const;
 type Page = (typeof PAGES)[number];
 type Route = { page: Page; params: URLSearchParams } | { page: "source"; id: string; params: URLSearchParams };
@@ -268,6 +270,7 @@ function Product() {
   return (
     <AppShell
       product="logs"
+      about={colophon}
       nav={nav}
       activeNav={active}
       onNavigate={(id) => navigate(`/${id}`)}
