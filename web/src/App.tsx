@@ -16,11 +16,13 @@ import {
   type ProductId,
   useThemePreference,
   useAgo,
+  toLocale,
+  useLocalePreference,
 } from "@openasy/ui";
-import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAuth, useInstallBrand } from "@openasy/auth/react";
+import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
 import { Bookmark, Bot, Cable, Eye, KeyRound, LayoutDashboard, LogIn, LogOut, Radio, Search, Server, Settings2, UserRound, Users } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ProductLink, SearchRecord, Settings, Summary } from "./api.ts";
 import { ExplorerPage } from "./explorer.tsx";
 import { AgentsPage, HostsPage } from "./hosts.tsx";
@@ -28,7 +30,8 @@ import { SourcePage, SourcesPage } from "./sources.tsx";
 import { TailPage } from "./tail.tsx";
 import { ViewsPage } from "./views.tsx";
 import { bytes, count, List, useApi, useData, type Call } from "./shared.tsx";
-import { useT } from "./i18n.ts";
+import { useT, type T } from "./i18n.ts";
+import { search } from "./search.ts";
 
 export const PAGES = [
   "overview",
@@ -210,27 +213,22 @@ function SearchesPage({ call }: { call: Call }) {
   );
 }
 
-const ACCOUNT = {
-  account: ["Account", "Your profile, password, two-step verification and where you are signed in."],
-  members: [
-    "Members",
-    "Who can sign in, and with which role. Viewers search and tail every line; editors also save views and set thresholds; admins also manage sources, agents, hosts, retention, members and tokens.",
-  ],
-  signin: [
-    "Sign-in",
-    "Identity providers people can sign in with, such as OpenAsy Identity, Keycloak or Microsoft Entra ID, and which of their groups give which role.",
-  ],
-  tokens: [
-    "API tokens",
-    "For scripts that search. Each token has one role and an expiry; the secret is shown once. Shippers use a source's ingest token instead.",
-  ],
-} as const;
+const ACCOUNT = (t: T) =>
+  ({
+    account: [t("settings.account"), t("settings.accountText")],
+    members: [t("settings.members"), t("settings.membersText")],
+    signin: [t("settings.signin"), t("settings.signinText")],
+    tokens: [t("settings.tokens"), t("settings.tokensText")],
+  }) as const;
 
 function Product() {
   const t = useT();
   const [theme, setTheme] = useThemePreference();
+  const [, setLocale] = useLocalePreference();
   const { me, can, signOut } = useAuth();
+  const account = useAccountMenu();
   const call = useApi();
+  const onSearch = useMemo(() => search(call, t), [call, t]);
   // usePath follows the query too, so the route has this page's parameters.
   const route = parseRoute(usePath(), window.location.search);
   const summary = useData<Summary>(call, "/api/v1/summary", 60_000);
@@ -270,6 +268,7 @@ function Product() {
   return (
     <AppShell
       product="logs"
+      onSearch={onSearch}
       about={colophon}
       nav={nav}
       activeNav={active}
@@ -279,10 +278,11 @@ function Product() {
         const to = products.find((p) => p.id === id);
         if (to) window.location.assign(to.url);
       }}
-      footerNav={footerNav}
-      user={{ name: me.user.name, role: roleName }}
+      footerNav={account.settings(footerNav)}
+      user={{ name: me.user.name, role: roleName, ...account.user }}
       theme={theme}
       onThemeChange={setTheme}
+      onLanguageChange={(code) => setLocale(toLocale(code))}
     >
       {route.page === "source" ? (
         <SourcePage key={route.id} call={call} id={route.id} />
@@ -312,8 +312,8 @@ function Product() {
         ) : (
           <>
             <PageHeader
-              title={ACCOUNT[page][0]}
-              description={ACCOUNT[page][1]}
+              title={ACCOUNT(t)[page][0]}
+              description={ACCOUNT(t)[page][1]}
               actions={
                 page === "account" && (
                   <Button icon={<LogOut />} onClick={() => void signOut()}>
@@ -335,9 +335,10 @@ function Product() {
 export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
+  const [locale] = useLocalePreference();
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
-    <BrandProvider theme={theme} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
+    <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
       <AuthGate product="OpenAsy Logs">
         <Product />
       </AuthGate>

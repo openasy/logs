@@ -313,12 +313,12 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
             xTicks={6}
           />
         ) : (
-          <p className="m-0 py-6 text-center text-sm text-fg-muted">{volume.data ? msg("explorerPage.noLinesInThisRange") : "Counting…"}</p>
+          <p className="m-0 py-6 text-center text-sm text-fg-muted">{volume.data ? msg("explorerPage.noLinesInThisRange") : msg("explorerPage.counting")}</p>
         )}
       </Panel>
       <Panel
         title={msg("explorerPage.lines")}
-        description={search.data ? msg("explorerPage.newestFirst", { length: search.data.lines.length }) : "Searching…"}
+        description={search.data ? msg("explorerPage.newestFirst", { length: search.data.lines.length }) : msg("explorerPage.searching")}
         actions={search.data?.truncated && <StatusBadge tone="info">{msg("explorerPage.moreMatchNarrowTheQuery")}</StatusBadge>}
         flush
       >

@@ -85,9 +85,8 @@ export function TailPage({ params }: { params: URLSearchParams }) {
       <Panel
         title={t("tailPage.stream")}
         description={t("tailPage.shownNewestFirst", {
-          length: lines.length,
-          value: lines.length === 1 ? "line" : "lines",
-          value2: paused && held.current.length ? `, ${held.current.length} waiting` : "",
+          count: lines.length,
+          waiting: paused && held.current.length ? t("tailPage.waiting", { count: held.current.length }) : "",
         })}
         flush
       >

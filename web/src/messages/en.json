@@ -100,7 +100,9 @@
     "newestFirst": "{{length}} newest first",
     "moreMatchNarrowTheQuery": "More match: narrow the query or the range",
     "logLines": "Log lines",
-    "noLinesMatchWidenThe": "No lines match. Widen the time range, or check the query."
+    "noLinesMatchWidenThe": "No lines match. Widen the time range, or check the query.",
+    "counting": "Counting…",
+    "searching": "Searching…"
   },
   "keyCheck": {
     "presentsAnotherKey": "{{name}} presents another key",
@@ -312,7 +314,9 @@
     "theStreamStopped": "The stream stopped",
     "logsIsReconnectingIfIt": "Logs is reconnecting. If it keeps stopping, check the query in Explorer: a query Logs cannot run is refused here too.",
     "stream": "Stream",
-    "shownNewestFirst": "{{length}} {{value}} shown{{value2}}, newest first",
+    "shownNewestFirst_one": "{{count}} line shown{{waiting}}, newest first",
+    "shownNewestFirst_other": "{{count}} lines shown{{waiting}}, newest first",
+    "waiting": ", {{count}} waiting",
     "liveLogLines": "Live log lines",
     "waitingForLinesThatMatch": "Waiting for lines that match."
   },
@@ -389,5 +393,22 @@
     "under": "Under",
     "over": "Over",
     "notChecked": "Not checked"
+  },
+  "search": {
+    "linesWith": "Lines with “{{text}}”",
+    "inTheLastHour": "In the explorer, the last hour",
+    "query": "Query",
+    "view": "View",
+    "source": "Source"
+  },
+  "settings": {
+    "account": "Account",
+    "accountText": "Your profile, password, two-step verification and where you are signed in.",
+    "members": "Members",
+    "signin": "Sign-in",
+    "tokens": "API tokens",
+    "membersText": "Who can sign in, and with which role. Viewers search and tail every line; editors also save views and set thresholds; admins also manage sources, agents, hosts, retention, members and tokens.",
+    "signinText": "Identity providers people can sign in with, such as OpenAsy Identity, Keycloak or Microsoft Entra ID, and which of their groups give which role.",
+    "tokensText": "For scripts that search. Each token has one role and an expiry; the secret is shown once. Shippers use a source's ingest token instead."
   }
 }
