@@ -124,6 +124,7 @@
     "containers": ", Container",
     "notReadable": "Nicht lesbar:",
     "agent": "Agent",
+    "inInfrastructure": "In Infrastructure",
     "readNow": "Jetzt lesen",
     "stopReadingItsLinesStay": "{{name}} nicht mehr lesen? Seine Zeilen bleiben, bis die Aufbewahrung sie entfernt.",
     "remove": "Entfernen",

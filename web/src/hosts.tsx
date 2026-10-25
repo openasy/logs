@@ -65,7 +65,8 @@ function KeyCheck({ call, host, onDone }: { call: Call; host: Host; onDone: () =
   );
 }
 
-export function HostsPage({ call }: { call: Call }) {
+/** infraUrl: where Infrastructure is, when the install has it (OPENASY_PRODUCTS). */
+export function HostsPage({ call, infraUrl }: { call: Call; infraUrl?: string }) {
   const ago = useAgo();
   const t = useT();
   const { can } = useAuth();
@@ -82,6 +83,12 @@ export function HostsPage({ call }: { call: Call }) {
         <span className="flex flex-wrap items-center gap-1.5">
           <a href={explore(`host:${quote(h.name)}`)}>{h.name}</a>
           {h.origin === "file" && <Badge tone="neutral">{t("hostsPage.fromFile")}</Badge>}
+          {/* A host from the hosts file has the same name in Infrastructure, which opens it by that name (ADR 0052). */}
+          {h.origin === "file" && infraUrl && (
+            <a href={`${infraUrl.replace(/\/$/, "")}/hosts?name=${encodeURIComponent(h.name)}`} className="text-xs">
+              {t("hostsPage.inInfrastructure")}
+            </a>
+          )}
         </span>
       ),
       sortValue: (h) => h.name,

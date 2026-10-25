@@ -124,6 +124,7 @@
     "containers": ", kapsayıcılar",
     "notReadable": "Okunamıyor:",
     "agent": "Ajan",
+    "inInfrastructure": "Infrastructure'da",
     "readNow": "Şimdi oku",
     "stopReadingItsLinesStay": "{{name}} okunmayı bıraksın mı? Satırları saklama süresi onları kaldırana kadar kalır.",
     "remove": "Kaldır",

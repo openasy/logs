@@ -295,7 +295,7 @@ function Product() {
       ) : page === "sources" ? (
         <SourcesPage call={call} />
       ) : page === "hosts" ? (
-        <HostsPage call={call} />
+        <HostsPage call={call} infraUrl={products.find((p) => p.id === "infrastructure")?.url} />
       ) : page === "agents" ? (
         <AgentsPage call={call} />
       ) : page === "settings" ? (

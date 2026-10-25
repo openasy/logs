@@ -124,6 +124,7 @@
     "containers": ", containers",
     "notReadable": "Not readable:",
     "agent": "Agent",
+    "inInfrastructure": "In Infrastructure",
     "readNow": "Read now",
     "stopReadingItsLinesStay": "Stop reading {{name}}? Its lines stay until retention removes them.",
     "remove": "Remove",
