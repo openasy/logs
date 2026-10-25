@@ -19,7 +19,15 @@
     "open": "Açın:",
     "explorer": "Gezgin",
     "andWriteLogsql": "ve LogsQL yazın:",
-    "logsqlReference": "LogsQL başvurusu"
+    "logsqlReference": "LogsQL başvurusu",
+    "linesOverTime": "Zaman içinde satırlar",
+    "linesOverTimeDetail": "Son 24 saatin her satırı, seviyeye göre.",
+    "byLevel": "Seviyeye göre",
+    "byLevelDetail": "Son 24 saatin satırları.",
+    "lines": "satır",
+    "topServices": "En çok gönderen servisler",
+    "topHosts": "En çok gönderen sunucular",
+    "last24Hours": "Son 24 saatin satırları; birini Explorer'da açın."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Kaydedildi. Depolama bununla yeniden başladı; yeni saklama süresinden eski satırlar kaldırılır.",
@@ -116,6 +124,7 @@
   "hostsPage": {
     "host": "Sunucu",
     "fromFile": "Dosyadan",
+    "inInfrastructure": "Infrastructure'da",
     "address": "Adres",
     "status": "Durum",
     "lines": "Satırlar",

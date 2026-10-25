@@ -19,7 +19,15 @@
     "open": "Open",
     "explorer": "Explorer",
     "andWriteLogsql": "and write LogsQL:",
-    "logsqlReference": "LogsQL reference"
+    "logsqlReference": "LogsQL reference",
+    "linesOverTime": "Lines over time",
+    "linesOverTimeDetail": "Every line of the last 24 hours, by level.",
+    "byLevel": "By level",
+    "byLevelDetail": "Lines of the last 24 hours.",
+    "lines": "lines",
+    "topServices": "Services that sent the most",
+    "topHosts": "Hosts that sent the most",
+    "last24Hours": "Lines of the last 24 hours; open one in Explorer."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Saved. Storage restarted with it; lines older than the new retention are removed.",
@@ -116,6 +124,7 @@
   "hostsPage": {
     "host": "Host",
     "fromFile": "From file",
+    "inInfrastructure": "In Infrastructure",
     "address": "Address",
     "status": "Status",
     "lines": "Lines",

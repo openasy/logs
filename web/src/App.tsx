@@ -12,18 +12,43 @@ import {
   PRODUCT_IDS,
   TextField,
   usePath,
-  type Column,
-  type ProductId,
   useThemePreference,
   useAgo,
   toLocale,
   useLocalePreference,
+  BarList,
+  DonutChart,
+  LOG_LEVEL_META,
+  OverviewGrid,
+  TimeSeriesChart,
+  TONE_COLORS,
+  toLogLevel,
+  type Column,
+  type ProductId,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Bookmark, Bot, Cable, Eye, KeyRound, LayoutDashboard, LogIn, LogOut, Radio, Search, Server, Settings2, UserRound, Users } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  Bookmark,
+  Bot,
+  Cable,
+  Database,
+  Eye,
+  KeyRound,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Radio,
+  Search,
+  Server,
+  Settings2,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { ProductLink, SearchRecord, Settings, Summary } from "./api.ts";
+import type { Facets, ProductLink, SearchRecord, Settings, Summary, Volume } from "./api.ts";
 import { ExplorerPage } from "./explorer.tsx";
 import { AgentsPage, HostsPage } from "./hosts.tsx";
 import { SourcePage, SourcesPage } from "./sources.tsx";
@@ -63,6 +88,19 @@ function parseRoute(path: string, query: string): Route {
 function OverviewPage({ call }: { call: Call }) {
   const t = useT();
   const { data: s } = useData<Summary>(call, "/api/v1/summary", 30_000);
+  // Every line of the last 24 hours: how many by level over time, and the services and hosts that sent the most.
+  // The window is set once, when the page opens.
+  const [day] = useState(() => {
+    const end = Date.now();
+    return new URLSearchParams({ query: "*", start: new Date(end - 86_400_000).toISOString(), end: new Date(end).toISOString() }).toString();
+  });
+  const volume = useData<Volume>(call, `/api/v1/volume?${day}`, 0).data;
+  const facets = useData<Facets>(call, `/api/v1/facets?${day}`, 0).data;
+  const levels = [...(volume?.series ?? [])].sort(
+    (a, b) => (LOG_LEVEL_META[toLogLevel(b.level)]?.rank ?? -1) - (LOG_LEVEL_META[toLogLevel(a.level)]?.rank ?? -1),
+  );
+  const levelColor = (level: string) => TONE_COLORS[LOG_LEVEL_META[toLogLevel(level)]?.tone ?? "neutral"];
+  const facetOf = (field: string) => (facets?.fields.find((x) => x.field === field)?.values ?? []).slice(0, 8);
   const total = (r: Record<string, number> | undefined) => Object.values(r ?? {}).reduce((a, b) => a + b, 0);
   if (s && total(s.sources) === 0) {
     return (
@@ -86,26 +124,96 @@ function OverviewPage({ call }: { call: Call }) {
     <>
       <PageHeader title={t("overviewPage.overview")} description={t("overviewPage.whatArrivesFromWhereAnd")} />
       <KpiGrid>
-        <KpiCard label={t("overviewPage.linesInTheLastHour")} value={s ? count(s.linesLastHour) : "–"} href="/explorer" />
+        <KpiCard
+          label={t("overviewPage.linesInTheLastHour")}
+          value={s ? count(s.linesLastHour) : "–"}
+          icon={Activity}
+          trend={volume?.times.map((_, i) => levels.reduce((n, l) => n + (l.values[i] ?? 0), 0))}
+          href="/explorer"
+        />
         <KpiCard
           label={t("overviewPage.stored")}
           value={s ? bytes(s.storedBytes) : "–"}
+          icon={Database}
           footer={s && t("overviewPage.keptDays", { retentionDays: s.retentionDays })}
           href="/settings"
         />
-        <KpiCard label={t("overviewPage.sources")} value={s ? total(s.sources) : "–"} href="/sources" />
+        <KpiCard label={t("overviewPage.sources")} value={s ? total(s.sources) : "–"} icon={Cable} href="/sources" />
         <KpiCard
           label={t("overviewPage.hostsRead")}
           value={s ? `${s.hosts.ok ?? 0}/${total(s.hosts)}` : "–"}
+          icon={Server}
           tone={notOk > 0 ? "warning" : undefined}
           href="/hosts"
         />
-        <KpiCard label={t("overviewPage.viewsOverThreshold")} value={s?.alertsFiring ?? "–"} tone={s?.alertsFiring ? "danger" : undefined} href="/views" />
+        <KpiCard
+          label={t("overviewPage.viewsOverThreshold")}
+          value={s?.alertsFiring ?? "–"}
+          icon={Bell}
+          tone={s?.alertsFiring ? "danger" : undefined}
+          href="/views"
+        />
       </KpiGrid>
       {s && s.linesLastHour === null && (
         <Callout tone="danger" title={t("overviewPage.storageIsNotAnswering")}>
           {t("overviewPage.victorialogsInsideLogsIsStarting")}
         </Callout>
+      )}
+      {volume && levels.length > 0 && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.linesOverTime")} description={t("overviewPage.linesOverTimeDetail")}>
+            <TimeSeriesChart
+              label={t("overviewPage.linesOverTime")}
+              labels={volume.times.map((x) => new Date(x).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}
+              stacked
+              height={200}
+              format={(v) => count(v)}
+              series={[...levels].reverse().map((l) => ({ id: l.level, name: l.level, data: l.values, color: levelColor(l.level) }))}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.byLevel")} description={t("overviewPage.byLevelDetail")}>
+            <DonutChart
+              label={t("overviewPage.byLevel")}
+              caption={t("overviewPage.lines")}
+              format={(v) => count(v)}
+              slices={levels.map((l) => ({
+                id: l.level,
+                name: l.level,
+                value: l.total,
+                color: levelColor(l.level),
+                href: `/explorer?${new URLSearchParams({ q: `level:${l.level}` })}`,
+              }))}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {facets && (facetOf("service").length > 0 || facetOf("host").length > 0) && (
+        <OverviewGrid layout="halves">
+          <Panel title={t("overviewPage.topServices")} description={t("overviewPage.last24Hours")}>
+            <BarList
+              label={t("overviewPage.topServices")}
+              format={(v) => count(v)}
+              items={facetOf("service").map((v) => ({
+                id: v.value,
+                label: v.value || "–",
+                value: v.hits,
+                href: `/explorer?${new URLSearchParams({ q: `service:${JSON.stringify(v.value)}` })}`,
+              }))}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.topHosts")} description={t("overviewPage.last24Hours")}>
+            <BarList
+              label={t("overviewPage.topHosts")}
+              format={(v) => count(v)}
+              items={facetOf("host").map((v) => ({
+                id: v.value,
+                label: v.value || "–",
+                value: v.hits,
+                href: `/explorer?${new URLSearchParams({ q: `host:${JSON.stringify(v.value)}` })}`,
+              }))}
+            />
+          </Panel>
+        </OverviewGrid>
       )}
       <Panel title={t("overviewPage.search")}>
         <p className="m-0 text-sm">

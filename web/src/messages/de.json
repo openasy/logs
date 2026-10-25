@@ -19,7 +19,15 @@
     "open": "Öffnen Sie",
     "explorer": "Explorer",
     "andWriteLogsql": "und schreiben Sie LogsQL:",
-    "logsqlReference": "LogsQL-Referenz"
+    "logsqlReference": "LogsQL-Referenz",
+    "linesOverTime": "Zeilen im Zeitverlauf",
+    "linesOverTimeDetail": "Jede Zeile der letzten 24 Stunden, nach Stufe.",
+    "byLevel": "Nach Stufe",
+    "byLevelDetail": "Zeilen der letzten 24 Stunden.",
+    "lines": "Zeilen",
+    "topServices": "Dienste, die am meisten senden",
+    "topHosts": "Hosts, die am meisten senden",
+    "last24Hours": "Zeilen der letzten 24 Stunden; öffnen Sie eine im Explorer."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Gespeichert. Der Speicher wurde damit neu gestartet; Zeilen, die älter als die neue Aufbewahrung sind, werden entfernt.",
@@ -116,6 +124,7 @@
   "hostsPage": {
     "host": "Host",
     "fromFile": "Aus der Datei",
+    "inInfrastructure": "In Infrastructure",
     "address": "Adresse",
     "status": "Status",
     "lines": "Zeilen",
