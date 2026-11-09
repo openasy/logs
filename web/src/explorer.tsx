@@ -24,7 +24,7 @@ import { Bookmark, ChevronRight, Radio } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Facets, Line, NewView, Search, View, Volume } from "./api.ts";
 import { count, explore, Level, quote, useData, type Call } from "./shared.tsx";
-import { useT } from "./i18n.ts";
+import { useT, viewerLocale } from "./i18n.ts";
 
 const RANGES: Record<string, number> = { "15m": 15, "1h": 60, "6h": 360, "24h": 1440, "7d": 10_080, "30d": 43_200 };
 /** Fields the facets filter on, in this order; the line's own columns. */
@@ -41,10 +41,10 @@ export function withFilters(query: string, picked: Record<string, string[]>): st
 
 const time = (iso: string) => {
   const d = new Date(iso);
-  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${d.toLocaleTimeString(undefined, { hour12: false })}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+  return `${d.toLocaleDateString(viewerLocale(), { month: "short", day: "numeric" })} ${d.toLocaleTimeString(viewerLocale(), { hour12: false })}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 };
 
-const ROW = "grid w-full grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] items-center gap-2 px-3 py-1 text-left";
+const ROW = "grid w-full grid-cols-[14px_96px_52px_110px_110px_minmax(0,1fr)] items-center gap-2 px-3 py-1 text-start";
 
 export function LogHeader() {
   const t = useT();
@@ -100,7 +100,7 @@ export function LogRow({
           id={detailId}
           role="region"
           aria-label={t("logRow.logDetails", { time: line.time })}
-          className="grid gap-3 border-t border-subtle px-3 py-2.5 pl-8 lg:grid-cols-[minmax(0,1fr)_240px]"
+          className="grid gap-3 border-t border-subtle px-3 py-2.5 ps-8 lg:grid-cols-[minmax(0,1fr)_240px]"
         >
           <div className="flex min-w-0 flex-col gap-2">
             <p className="logs-msg m-0 font-mono text-xs text-fg">{line.msg}</p>
@@ -304,7 +304,7 @@ export function ExplorerPage({ call, params }: { call: Call; params: URLSearchPa
         {volume.data && volume.data.times.length > 0 ? (
           <StackedBarChart
             label={msg("explorerPage.linesOverTimeByLevel")}
-            categories={volume.data.times.map((t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }))}
+            categories={volume.data.times.map((t) => new Date(t).toLocaleTimeString(viewerLocale(), { hour: "2-digit", minute: "2-digit", hour12: false }))}
             segments={[...levels]
               .reverse()
               .map((s) => ({ id: s.level, name: s.level, color: TONE_COLORS[LOG_LEVEL_META[toLogLevel(s.level)]?.tone ?? "neutral"] }))}

@@ -65,7 +65,7 @@
 .logs-field {
   all: unset;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 .logs-field:hover,

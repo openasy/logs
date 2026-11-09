@@ -55,7 +55,7 @@ import { SourcePage, SourcesPage } from "./sources.tsx";
 import { TailPage } from "./tail.tsx";
 import { ViewsPage } from "./views.tsx";
 import { bytes, count, List, useApi, useData, type Call } from "./shared.tsx";
-import { useT, type T } from "./i18n.ts";
+import { useT, type T, viewerLocale, setViewerLocale } from "./i18n.ts";
 import { search } from "./search.ts";
 
 export const PAGES = [
@@ -164,7 +164,7 @@ function OverviewPage({ call }: { call: Call }) {
           <Panel title={t("overviewPage.linesOverTime")} description={t("overviewPage.linesOverTimeDetail")}>
             <TimeSeriesChart
               label={t("overviewPage.linesOverTime")}
-              labels={volume.times.map((x) => new Date(x).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}
+              labels={volume.times.map((x) => new Date(x).toLocaleTimeString(viewerLocale(), { hour: "2-digit", minute: "2-digit" }))}
               stacked
               height={200}
               format={(v) => count(v)}
@@ -305,7 +305,7 @@ function SearchesPage({ call }: { call: Call }) {
       id: "at",
       header: t("searchesPage.when"),
       width: "120px",
-      cell: (s) => <span title={new Date(s.at).toLocaleString()}>{ago(s.at)}</span>,
+      cell: (s) => <span title={new Date(s.at).toLocaleString(viewerLocale())}>{ago(s.at)}</span>,
       sortValue: (s) => s.at,
     },
     { id: "who", header: t("searchesPage.who"), width: "240px", cell: (s) => s.actor },
@@ -445,6 +445,7 @@ export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
   const [locale] = useLocalePreference();
+  setViewerLocale(locale);
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
     <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">

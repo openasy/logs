@@ -4,7 +4,7 @@ import { Check, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { Agent, AgentSetup, Host, Summary } from "./api.ts";
 import { Code, count, explore, List, quote, Status, useData, type Call } from "./shared.tsx";
-import { useT, type T } from "./i18n.ts";
+import { useT, type T, viewerLocale } from "./i18n.ts";
 
 // What to write in the hosts file (ADR 0052), shown where there is nothing yet.
 const EXAMPLE = `hosts:
@@ -188,7 +188,7 @@ export function HostsPage({ call, infraUrl }: { call: Call; infraUrl?: string })
       {agents.length > 0 && data?.hosts.length === 0 && (
         <EmptyState title={t("hostsPage.noHostsYet")}>
           {t("hostsPage.noHostsYetPrepareOne")}
-          <div className="mt-3 text-left">
+          <div className="mt-3 text-start">
             <Code label={t("hostsPage.linesForTheHostsFile")}>{EXAMPLE}</Code>
           </div>
         </EmptyState>
@@ -220,7 +220,7 @@ function EnrollCommand({ token, expiresAt, version, onDone }: { token: string; e
       icon={<Check aria-hidden className="size-4" />}
       iconTone="success"
       title={t("enrollCommand.startTheAgentWithThis")}
-      description={t("enrollCommand.itWorksOnceUntilAnd", { value: new Date(expiresAt).toLocaleString() })}
+      description={t("enrollCommand.itWorksOnceUntilAnd", { value: new Date(expiresAt).toLocaleString(viewerLocale()) })}
       footer={
         <Button variant="primary" onClick={onDone}>
           {t("enrollCommand.done")}
