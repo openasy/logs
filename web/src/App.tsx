@@ -218,11 +218,12 @@ function OverviewPage({ call }: { call: Call }) {
       <Panel title={t("overviewPage.search")}>
         <p className="m-0 text-sm">
           {t("overviewPage.open")} <a href="/explorer">{t("overviewPage.explorer")}</a> {t("overviewPage.andWriteLogsql")}{" "}
-          <code>service:checkout level:error</code>, <code>"connection refused"</code>, <code>host:web-1 -service:cron</code>. The{" "}
+          <code>service:checkout level:error</code>, <code>"connection refused"</code>, <code>host:web-1 -service:cron</code>.{" "}
+          {t("overviewPage.theReferenceBefore")}{" "}
           <a href="https://docs.victoriametrics.com/victorialogs/logsql/" target="_blank" rel="noreferrer">
             {t("overviewPage.logsqlReference")}
           </a>{" "}
-          has the rest.
+          {t("overviewPage.hasTheRest")}
         </p>
       </Panel>
     </>

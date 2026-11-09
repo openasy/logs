@@ -27,7 +27,9 @@
     "lines": "lines",
     "topServices": "Services that sent the most",
     "topHosts": "Hosts that sent the most",
-    "last24Hours": "Lines of the last 24 hours; open one in Explorer."
+    "last24Hours": "Lines of the last 24 hours; open one in Explorer.",
+    "theReferenceBefore": "The",
+    "hasTheRest": "has the rest."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Saved. Storage restarted with it; lines older than the new retention are removed.",
@@ -133,7 +135,6 @@
     "containers": ", containers",
     "notReadable": "Not readable:",
     "agent": "Agent",
-    "inInfrastructure": "In Infrastructure",
     "readNow": "Read now",
     "stopReadingItsLinesStay": "Stop reading {{name}}? Its lines stay until retention removes them.",
     "remove": "Remove",
@@ -187,7 +188,8 @@
     "forHostsReadBy": "For hosts read by",
     "commandsToPrepareAHost": "Commands to prepare a host",
     "orWhereSshdConfigCannot": "Or, where sshd_config cannot change, one fixed key that can open no TTY and forward nothing:",
-    "caFingerprint2": "CA fingerprint {{caFingerprint}}"
+    "caFingerprint2": "CA fingerprint {{caFingerprint}}",
+    "authorizedKeysLine": "authorized_keys line"
   },
   "code": {
     "copy": "Copy"

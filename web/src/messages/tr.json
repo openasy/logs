@@ -27,7 +27,9 @@
     "lines": "satır",
     "topServices": "En çok gönderen servisler",
     "topHosts": "En çok gönderen sunucular",
-    "last24Hours": "Son 24 saatin satırları; birini Explorer'da açın."
+    "last24Hours": "Son 24 saatin satırları; birini Explorer'da açın.",
+    "theReferenceBefore": "Gerisi",
+    "hasTheRest": "içinde."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Kaydedildi. Depolama bununla yeniden başladı; yeni saklama süresinden eski satırlar kaldırılır.",
@@ -133,7 +135,6 @@
     "containers": ", kapsayıcılar",
     "notReadable": "Okunamıyor:",
     "agent": "Ajan",
-    "inInfrastructure": "Infrastructure'da",
     "readNow": "Şimdi oku",
     "stopReadingItsLinesStay": "{{name}} okunmayı bıraksın mı? Satırları saklama süresi onları kaldırana kadar kalır.",
     "remove": "Kaldır",
@@ -187,7 +188,8 @@
     "forHostsReadBy": "Şunun okuduğu sunucular için:",
     "commandsToPrepareAHost": "Sunucu hazırlama komutları",
     "orWhereSshdConfigCannot": "Ya da sshd_config değiştirilemeyen yerlerde, TTY açamayan ve hiçbir şeyi yönlendirmeyen sabit bir anahtar:",
-    "caFingerprint2": "CA parmak izi {{caFingerprint}}"
+    "caFingerprint2": "CA parmak izi {{caFingerprint}}",
+    "authorizedKeysLine": "authorized_keys satırı"
   },
   "code": {
     "copy": "Kopyala"

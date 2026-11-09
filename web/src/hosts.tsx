@@ -381,7 +381,7 @@ export function AgentsPage({ call }: { call: Call }) {
           <div className="flex flex-col gap-3">
             <Code label={t("agentsPage.commandsToPrepareAHost")}>{setup.hostSetup}</Code>
             <span className="text-sm text-fg-muted">{t("agentsPage.orWhereSshdConfigCannot")}</span>
-            <Code label="authorized_keys line">{`# ~openasy/.ssh/authorized_keys\n${setup.authorizedKey}`}</Code>
+            <Code label={t("agentsPage.authorizedKeysLine")}>{`# ~openasy/.ssh/authorized_keys\n${setup.authorizedKey}`}</Code>
             <span className="logs-wrap text-xs text-fg-muted">{t("agentsPage.caFingerprint2", { caFingerprint: setup.caFingerprint })}</span>
           </div>
         </Panel>

@@ -27,7 +27,9 @@
     "lines": "Zeilen",
     "topServices": "Dienste, die am meisten senden",
     "topHosts": "Hosts, die am meisten senden",
-    "last24Hours": "Zeilen der letzten 24 Stunden; öffnen Sie eine im Explorer."
+    "last24Hours": "Zeilen der letzten 24 Stunden; öffnen Sie eine im Explorer.",
+    "theReferenceBefore": "In der",
+    "hasTheRest": "steht der Rest."
   },
   "settingsPage": {
     "savedStorageRestartedWithIt": "Gespeichert. Der Speicher wurde damit neu gestartet; Zeilen, die älter als die neue Aufbewahrung sind, werden entfernt.",
@@ -133,7 +135,6 @@
     "containers": ", Container",
     "notReadable": "Nicht lesbar:",
     "agent": "Agent",
-    "inInfrastructure": "In Infrastructure",
     "readNow": "Jetzt lesen",
     "stopReadingItsLinesStay": "{{name}} nicht mehr lesen? Seine Zeilen bleiben, bis die Aufbewahrung sie entfernt.",
     "remove": "Entfernen",
@@ -187,7 +188,8 @@
     "forHostsReadBy": "Für Hosts, die gelesen werden von",
     "commandsToPrepareAHost": "Befehle zum Vorbereiten eines Hosts",
     "orWhereSshdConfigCannot": "Oder, wo sshd_config nicht geändert werden kann, ein fester Schlüssel, der kein TTY öffnen und nichts weiterleiten kann:",
-    "caFingerprint2": "CA-Fingerabdruck {{caFingerprint}}"
+    "caFingerprint2": "CA-Fingerabdruck {{caFingerprint}}",
+    "authorizedKeysLine": "authorized_keys-Zeile"
   },
   "code": {
     "copy": "Kopieren"
